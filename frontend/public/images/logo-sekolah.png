@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="navyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1B365D" />
+      <stop offset="100%" stop-color="#0F1E36" />
+    </linearGradient>
+    <linearGradient id="tealGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0D9488" />
+      <stop offset="100%" stop-color="#14B8A6" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#FCD34D" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  
+  <!-- Outer Shield Crest -->
+  <path d="M100 12 C145 12 180 25 180 65 C180 125 140 168 100 188 C60 168 20 125 20 65 C20 25 55 12 100 12 Z" 
+        fill="url(#navyGrad)" 
+        stroke="url(#tealGrad)" 
+        stroke-width="5" 
+        filter="url(#shadow)" />
+        
+  <!-- Inner Ring / Accent -->
+  <path d="M100 24 C138 24 168 35 168 70 C168 120 134 156 100 173 C66 156 32 120 32 70 C32 35 62 24 100 24 Z" 
+        fill="none" 
+        stroke="#FFFFFF" 
+        stroke-width="1.5" 
+        stroke-opacity="0.3" 
+        stroke-dasharray="4 3" />
+
+  <!-- Graduation Cap (Top) -->
+  <polygon points="100,50 145,66 100,82 55,66" fill="url(#tealGrad)" />
+  <path d="M70,72 L70,95 C70,105 130,105 130,95 L130,72" fill="none" stroke="url(#tealGrad)" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="100" cy="66" r="3.5" fill="#FFFFFF" />
+  <path d="M135,70 L145,85 L142,105" fill="none" stroke="url(#goldGrad)" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Open Book (Center) -->
+  <path d="M100,118 C88,110 65,110 50,115 L50,145 C65,140 88,140 100,148 C112,140 135,140 150,145 L150,115 C135,110 112,110 100,118 Z" 
+        fill="#FFFFFF" />
+  <path d="M100,118 L100,148" stroke="#1B365D" stroke-width="2.5" />
+  <path d="M58,123 C68,120 82,121 92,126" stroke="#94A3B8" stroke-width="2" stroke-linecap="round"/>
+  <path d="M58,131 C68,128 82,129 92,134" stroke="#94A3B8" stroke-width="2" stroke-linecap="round"/>
+  <path d="M108,126 C118,121 132,120 142,123" stroke="#94A3B8" stroke-width="2" stroke-linecap="round"/>
+  <path d="M108,134 C118,129 132,128 142,131" stroke="#94A3B8" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- AI Sparks / Nodes -->
+  <circle cx="100" cy="102" r="4" fill="url(#goldGrad)" />
+  <path d="M96,102 L104,102 M100,98 L100,106" stroke="#FFFFFF" stroke-width="1.5"/>
+  <circle cx="48" cy="88" r="2.5" fill="url(#tealGrad)" />
+  <circle cx="152" cy="88" r="2.5" fill="url(#tealGrad)" />
+</svg>

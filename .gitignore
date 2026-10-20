@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+.pnp
+.pnp.js
+
+# Production & Build
+.next/
+frontend/.next/
+out/
+frontend/out/
+build/
+dist/
+
+# Environment Variables
+.env
+.env*.local
+backend/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/venv/
+backend/.venv/
+env/
+venv/
+ENV/
+
+# Temporary & Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+*.pem
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
