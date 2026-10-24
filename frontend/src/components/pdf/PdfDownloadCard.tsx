@@ -12,31 +12,53 @@ interface PdfDownloadCardProps {
 
 export function PdfDownloadCard({ pdf, onPreview }: PdfDownloadCardProps) {
   const [hasDownloaded, setHasDownloaded] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
-  const handleDownload = () => {
-    setHasDownloaded(true);
-    // Create an elegant simulated download of the PDF file
-    const element = document.createElement("a");
-    const sampleContent = `%PDF-1.4
-% SmartSchool AI Generated Document: ${pdf.title}
-% Ref Number: ${pdf.documentRefNumber || "SMART-OFFICIAL-2026"}
-% Date: ${pdf.createdAt}
-==================================================
-PEMERINTAH DAERAH PROVINSI / YAYASAN PENDIDIKAN
-SMART SCHOOL ACADEMY - TERAKREDITASI A
-${pdf.title}
-==================================================
-Status: DIVERIFIKASI RESMI
-Dicetak secara otomatis melalui SmartSchool AI Assistant.`;
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      // 1. Ambil URL unduhan asli dari FastAPI (pdf.downloadUrl)
+      const targetUrl = pdf.downloadUrl || "";
 
-    const file = new Blob([sampleContent], { type: "application/pdf" });
-    element.href = URL.createObjectURL(file);
-    element.download = pdf.filename;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+      if (!targetUrl) {
+        alert("URL unduhan tidak valid atau tidak ditemukan.");
+        return;
+      }
 
-    setTimeout(() => setHasDownloaded(false), 3000);
+      // 2. Tambahkan parameter penembus halaman peringatan Ngrok jika menggunakan Ngrok
+      const formattedUrl = targetUrl.includes("ngrok")
+        ? `${targetUrl}?ngrok-skip-browser-warning=true`
+        : targetUrl;
+
+      // 3. Ambil berkas biner PDF asli dari server
+      const response = await fetch(formattedUrl);
+      if (!response.ok) {
+        throw new Error(`Server merespons dengan status ${response.status}`);
+      }
+
+      // 4. Ubah respons menjadi BLOB biner murni
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      // 5. Pemicu unduhan otomatis berkas biner
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = pdf.filename || "Laporan_Tunggakan_SPP.pdf";
+      document.body.appendChild(link);
+      link.click();
+      
+      // 6. Bersihkan elemen dan objek memori
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
+      setHasDownloaded(true);
+      setTimeout(() => setHasDownloaded(false), 3000);
+    } catch (error) {
+      console.error("Gagal mengunduh PDF:", error);
+      alert("Gagal mengunduh berkas PDF asli dari server. Pastikan backend FastAPI aktif.");
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -64,7 +86,8 @@ Dicetak secara otomatis melalui SmartSchool AI Assistant.`;
             </div>
 
             <p className="text-xs text-slate-500 mt-0.5">
-              {pdf.filename} • <span className="font-medium text-slate-600">{pdf.size}</span>
+              {pdf.filename}
+              {pdf.size && <span className="font-medium text-slate-600"> • {pdf.size}</span>}
               {pdf.pagesCount && ` • ${pdf.pagesCount} Halaman`}
             </p>
 
@@ -94,6 +117,7 @@ Dicetak secara otomatis melalui SmartSchool AI Assistant.`;
             type="button"
             variant="primary"
             size="sm"
+            disabled={isDownloading}
             onClick={handleDownload}
             className="text-xs font-semibold bg-[#1B365D] hover:bg-[#142846]"
           >
@@ -102,6 +126,8 @@ Dicetak secara otomatis melalui SmartSchool AI Assistant.`;
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                 Tersimpan
               </>
+            ) : isDownloading ? (
+              <>Mengunduh...</>
             ) : (
               <>
                 <Download className="w-3.5 h-3.5" />

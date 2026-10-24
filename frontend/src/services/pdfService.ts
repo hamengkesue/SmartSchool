@@ -52,7 +52,7 @@ export async function uploadPdfDocument(
   formData.append("is_knowledge_base", String(isKnowledgeBaseUpload));
 
   try {
-    const response = await fetch(`${FASTAPI_BASE_URL}/api/v1/pdf/upload`, {
+    const response = await fetch("https://cozily-elm-spousal.ngrok-free.dev/webhook/upload-pdf", {
       method: "POST",
       headers: {
         "ngrok-skip-browser-warning": "true",
@@ -124,7 +124,7 @@ export async function generatePdfReport(
 export async function getKnowledgeBaseDocuments(): Promise<KnowledgeDocument[]> {
   const result = await apiClient<KnowledgeDocument[]>("api/v1/documents", {
     method: "GET",
-    timeoutMs: 4000,
+    timeoutMs: 30000,
   });
 
   if (result.data && !result.error) {

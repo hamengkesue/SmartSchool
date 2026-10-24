@@ -4,7 +4,7 @@
  */
 
 export interface RequestOptions extends RequestInit {
-  timeoutMs?: number;
+  timeoutMs?: 30000;
 }
 
 export const FASTAPI_BASE_URL =
@@ -17,7 +17,7 @@ export async function apiClient<T>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<{ data: T | null; error: string | null; isMockFallback: boolean }> {
-  const { timeoutMs = 8000, headers, ...rest } = options;
+  const { timeoutMs = 30000, headers, ...rest } = options;
 
   // Construct absolute or relative URL
   const url = endpoint.startsWith("http")
@@ -77,7 +77,7 @@ export async function checkBackendHealth(): Promise<boolean> {
   try {
     const res = await apiClient<{ status: string }>("health", {
       method: "GET",
-      timeoutMs: 3500,
+      timeoutMs: 30000,
     });
     return res.data?.status === "ok" || res.data?.status === "healthy";
   } catch {

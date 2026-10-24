@@ -339,8 +339,8 @@ export default function KnowledgeBasePage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {documents.map((doc) => (
-                      <tr key={doc.id} className="hover:bg-slate-50/60 transition-colors">
+                    {documents.map((doc, index) => (
+                      <tr key={doc.id || index} className="hover:bg-slate-50/60 transition-colors">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">

@@ -38,67 +38,195 @@ export function MessageBubble({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Simple clean markdown formatter for headers, bold, lists, and quotes
+  // --------------------------------------------------------------------------
+  // PARSER DINAMIS: Deteksi link download-pdf dari teks Markdown n8n
+  // --------------------------------------------------------------------------
+  let extractedPdf: GeneratedPdf | undefined = message.generatedPdf;
+  let displayContent = message.content || "";
+
+  if (!extractedPdf && !isUser && displayContent) {
+    // Regex mencocokkan markdown link [Teks](http://.../download-pdf/xxx) atau URL langsung
+    const pdfRegex = /\[(?:Download PDF|Unduh PDF|.*?)\]\((https?:\/\/[^\s)]+\/api\/v1\/download-pdf\/[^\s)]+)\)/i;
+    const match = displayContent.match(pdfRegex);
+
+    if (match) {
+      const fullMarkdownLink = match[0];
+      const downloadUrl = match[1];
+
+      // Hapus teks markdown link dari tampilan obrolan agar tidak mentah/ganda
+      displayContent = displayContent.replace(fullMarkdownLink, "").trim();
+
+      // Buat objek GeneratedPdf secara otomatis
+      extractedPdf = {
+        title: "Laporan Resmi Rekapitulasi Tunggakan SPP",
+        description: "Laporan resmi rekapitulasi tunggakan SPP.",
+        filename: "Laporan_Tunggakan_SPP.pdf",
+        downloadUrl: downloadUrl,
+        documentRefNumber: "421.3/KEU-SMART/X/2026",
+        createdAt: message.timestamp || "Baru saja",
+        size: "PDF Dokumen",
+      };
+    }
+  }
+
+// Helper untuk mem-parse dan merender tabel Markdown menjadi UI Tailwind Rapi
+  const renderMarkdownTable = (tableLines: string[], keyPrefix: number) => {
+    if (tableLines.length < 2) return null;
+
+    // Ambil Header (Baris 0)
+    const headers = tableLines[0]
+      .split("|")
+      .map((h) => h.trim())
+      .filter((h) => h !== "");
+
+    // Ambil Isi Data (Baris 2 ke atas, lewati baris pemisah |---|)
+    const rows = tableLines
+      .slice(2)
+      .map((rowLine) =>
+        rowLine
+          .split("|")
+          .map((c) => c.trim())
+          .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1 || arr.length <= 2)
+      );
+
+    return (
+      <div key={`table-${keyPrefix}`} className="my-3 overflow-x-auto rounded-xl border border-slate-200/90 shadow-2xs">
+        <table className="w-full text-left text-xs sm:text-sm">
+          <thead className="bg-[#1B365D] text-white text-[11px] uppercase tracking-wider font-semibold">
+            <tr>
+              {headers.map((h, i) => (
+                <th key={i} className="px-3.5 py-2.5 font-semibold border-b border-slate-700">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white">
+            {rows.map((row, rIdx) => (
+              <tr key={rIdx} className="hover:bg-slate-50/80 transition-colors">
+                {row.map((cell, cIdx) => (
+                  <td key={cIdx} className="px-3.5 py-2.5 text-slate-700 font-medium">
+                    {cell === "-" ? (
+                      <span className="text-slate-400 font-mono">-</span>
+                    ) : cell.toLowerCase().includes("belum lunas") ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-200 uppercase">
+                        {cell}
+                      </span>
+                    ) : cell.toLowerCase().includes("lunas") ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 uppercase">
+                        {cell}
+                      </span>
+                    ) : (
+                      cell
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  // Formatting Markdown untuk Judul, Tabel, List, & Paragraf
   const renderFormattedContent = (content: string) => {
-    const lines = content.split("\n");
-    return lines.map((line, idx) => {
-      // H3
+    const lines = (content || "").split("\n");
+    const elements: React.ReactNode[] = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      // 1. Deteksi Baris Tabel Markdown
+      if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
+        const tableLines: string[] = [];
+        while (i < lines.length && lines[i].trim().startsWith("|") && lines[i].trim().endsWith("|")) {
+          tableLines.push(lines[i].trim());
+          i++;
+        }
+        elements.push(renderMarkdownTable(tableLines, i));
+        continue;
+      }
+
+      // 2. H3
       if (line.startsWith("### ")) {
-        return (
-          <h3 key={idx} className="text-base font-bold text-slate-900 mt-3 mb-1.5 flex items-center gap-2">
+        elements.push(
+          <h3 key={i} className="text-base font-bold text-slate-900 mt-3 mb-1.5 flex items-center gap-2">
             {line.replace("### ", "")}
           </h3>
         );
+        i++;
+        continue;
       }
-      // H4
+
+      // 3. H4
       if (line.startsWith("#### ")) {
-        return (
-          <h4 key={idx} className="text-sm font-bold text-slate-800 mt-2.5 mb-1">
+        elements.push(
+          <h4 key={i} className="text-sm font-bold text-slate-800 mt-2.5 mb-1">
             {line.replace("#### ", "")}
           </h4>
         );
+        i++;
+        continue;
       }
-      // Blockquote
+
+      // 4. Blockquote
       if (line.startsWith("> ")) {
-        return (
+        elements.push(
           <blockquote
-            key={idx}
+            key={i}
             className="my-2 p-3 rounded-xl bg-amber-50/80 border-l-3 border-amber-500 text-xs text-amber-900 font-medium"
           >
             {line.replace("> ", "")}
           </blockquote>
         );
+        i++;
+        continue;
       }
-      // Bullet list item
+
+      // 5. Bullet List Item
       if (line.trim().startsWith("- ")) {
         const text = line.trim().replace("- ", "");
-        return (
-          <li key={idx} className="ml-4 list-disc text-xs sm:text-sm text-slate-700 my-0.5 leading-relaxed">
+        elements.push(
+          <li key={i} className="ml-4 list-disc text-xs sm:text-sm text-slate-700 my-0.5 leading-relaxed">
             <span dangerouslySetInnerHTML={{ __html: formatInlineMarkdown(text) }} />
           </li>
         );
+        i++;
+        continue;
       }
-      // Numbered list item
+
+      // 6. Numbered List Item
       if (/^\d+\.\s/.test(line.trim())) {
-        return (
-          <li key={idx} className="ml-4 list-decimal text-xs sm:text-sm text-slate-700 my-0.5 leading-relaxed">
+        elements.push(
+          <li key={i} className="ml-4 list-decimal text-xs sm:text-sm text-slate-700 my-0.5 leading-relaxed">
             <span dangerouslySetInnerHTML={{ __html: formatInlineMarkdown(line.trim().replace(/^\d+\.\s/, "")) }} />
           </li>
         );
+        i++;
+        continue;
       }
-      // Empty line
+
+      // 7. Empty line
       if (!line.trim()) {
-        return <div key={idx} className="h-2" />;
+        elements.push(<div key={i} className="h-2" />);
+        i++;
+        continue;
       }
-      // Regular paragraph
-      return (
+
+      // 8. Regular Paragraf
+      elements.push(
         <p
-          key={idx}
+          key={i}
           className="text-xs sm:text-sm text-slate-700 leading-relaxed my-1"
           dangerouslySetInnerHTML={{ __html: formatInlineMarkdown(line) }}
         />
       );
-    });
+      i++;
+    }
+
+    return elements;
   };
 
   // Format bold (**text**), code (`code`), span tags
@@ -180,9 +308,9 @@ export function MessageBubble({
           ) : (
             <div>
               {/* Formatted Text Content */}
-              <div>{renderFormattedContent(message.content)}</div>
+              <div>{renderFormattedContent(displayContent)}</div>
 
-              {/* Respons Tipe B: Embedded SPP Table (Fitur #5) */}
+              {/* Respons Tipe B: Embedded SPP Table */}
               {message.sppData && (
                 <SppArrearsTable
                   data={message.sppData}
@@ -190,15 +318,15 @@ export function MessageBubble({
                 />
               )}
 
-              {/* Respons Tipe C: Generated PDF Download Card (Fitur #2) */}
-              {message.generatedPdf && (
+              {/* Respons Tipe C: Generated PDF Download Card (Gunakan extractedPdf) */}
+              {extractedPdf && (
                 <PdfDownloadCard
-                  pdf={message.generatedPdf}
+                  pdf={extractedPdf}
                   onPreview={onPreviewPdf}
                 />
               )}
 
-              {/* Respons Tipe A: Citation Pills (Fitur #4 - RAG Citations) */}
+              {/* Respons Tipe A: Citation Pills */}
               {message.citations && message.citations.length > 0 && (
                 <div className="mt-4 pt-3 border-t border-slate-100">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">

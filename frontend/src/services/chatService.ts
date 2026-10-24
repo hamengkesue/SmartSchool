@@ -21,30 +21,38 @@ export async function sendChatMessage(
 ): Promise<{ response: ApiChatResponse; isFromMock: boolean }> {
   const { message, sessionId, role, pdfAttachmentId, pdfAttachmentName, forceMock } = params;
 
-  // If user explicitly chose Demo/Mock Mode, immediately return mock
   if (forceMock) {
-    // Artificial latency for realistic conversational UI feel
     await new Promise((res) => setTimeout(res, 600));
     const mock = getMockResponse(message, role, !!pdfAttachmentId, pdfAttachmentName);
     return { response: mock, isFromMock: true };
   }
 
-  // 1. Try FastAPI endpoint
-  const payload: ApiChatRequest = {
-    message,
-    sessionId,
-    role,
-    pdfAttachmentId,
-  };
+  // 1. Langsung panggil n8n Webhook jika URL-nya tersedia (Mencegah error 404 dari FastAPI)
+  const webhookUrl = N8N_WEBHOOK_URL || "https://cozily-elm-spousal.ngrok-free.dev/webhook/chat";
 
-  const result = await apiClient<ApiChatResponse>("api/v1/chat", {
-    method: "POST",
-    body: JSON.stringify(payload),
-    timeoutMs: 9000,
-  });
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+      },
+      body: JSON.stringify({
+        query: message,
+        session_id: sessionId,
+        user_role: role,
+        attachment_id: pdfAttachmentId,
+      }),
+      // AbortController untuk timeout 30 detik
+      signal: AbortSignal.timeout(30000),
+    });
 
-  if (result.data && !result.error) {
-    return { response: result.data, isFromMock: false };
+    if (response.ok) {
+      const data: ApiChatResponse = await response.json();
+      return { response: data, isFromMock: false };
+    }
+  } catch (err) {
+    console.warn("[SmartSchool AI] Gagal terhubung ke Webhook n8n, beralih ke mock:", err);
   }
 
   // 2. Optional secondary fallback to n8n webhook if FastAPI is unreachable
@@ -58,7 +66,7 @@ export async function sendChatMessage(
           user_role: role,
           attachment_id: pdfAttachmentId,
         }),
-        timeoutMs: 6000,
+        timeoutMs: 30000,
       });
 
       if (n8nResult.data && !n8nResult.error) {

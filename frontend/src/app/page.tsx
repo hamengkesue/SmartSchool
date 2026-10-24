@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import { useEffect, useState } from 'react';
 import { useChatSession } from "@/hooks/useChatSession";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { TopNavbar } from "@/components/layout/TopNavbar";
@@ -27,6 +27,18 @@ export default function ChatPage() {
     openPdfPreview,
     closePdfPreview,
   } = useChatSession();
+
+  useEffect(() => {
+    const savedRole = localStorage.getItem("active_user_role");
+    if (savedRole) {
+      setCurrentRole(savedRole as typeof currentRole);
+    }
+  }, [setCurrentRole]);
+
+  const handleRoleChange = (newRole: typeof currentRole) => {
+    setCurrentRole(newRole);
+    localStorage.setItem("active_user_role", newRole); 
+  };
 
   // Handles citation click (RAG Citation Pill)
   const handleOpenCitation = (citation: Citation) => {
@@ -64,7 +76,7 @@ export default function ChatPage() {
       />
 
       {/* 2. Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-72 h-full">
+       <div className="flex flex-1 flex-col h-full overflow-hidden">
         {/* Top Navigation Bar with Role and Backend/Mock Status */}
         <TopNavbar
           currentRole={currentRole}
