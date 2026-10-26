@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import { useChatSession } from "@/hooks/useChatSession";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { TopNavbar } from "@/components/layout/TopNavbar";
@@ -8,10 +8,11 @@ import { ChatWorkspace } from "@/components/chat/ChatWorkspace";
 import { MultimodalInputBar } from "@/components/chat/MultimodalInputBar";
 import { PdfPreviewModal } from "@/components/pdf/PdfPreviewModal";
 import { Citation, GeneratedPdf } from "@/types/chat.types";
+import { cn } from "@/lib/utils";
 import confetti from "canvas-confetti";
 
 export default function ChatPage() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const {
     currentRole,
@@ -26,18 +27,22 @@ export default function ChatPage() {
     previewPdfModal,
     openPdfPreview,
     closePdfPreview,
+    sessions,
+    activeSessionId,
+    loadSession,
+    restoreLastOpenedSession,
   } = useChatSession();
 
+  // Set default sidebar open state according to device width on initial mount
   useEffect(() => {
-    const savedRole = localStorage.getItem("active_user_role");
-    if (savedRole) {
-      setCurrentRole(savedRole as typeof currentRole);
+    if (typeof window !== "undefined") {
+      setIsSidebarOpen(window.innerWidth >= 1024);
     }
-  }, [setCurrentRole]);
+  }, []);
 
   const handleRoleChange = (newRole: typeof currentRole) => {
     setCurrentRole(newRole);
-    localStorage.setItem("active_user_role", newRole); 
+    localStorage.setItem("active_user_role", newRole);
   };
 
   // Handles citation click (RAG Citation Pill)
@@ -61,30 +66,44 @@ export default function ChatPage() {
     });
 
     // Send automated prompt to request formal PDF generation
-    sendMessage("Tolong buatkan dan cetak rekapitulasi data tunggakan SPP ini ke dalam format dokumen PDF resmi.");
+    sendMessage(
+      "Tolong buatkan dan cetak rekapitulasi data tunggakan SPP ini ke dalam format dokumen PDF resmi."
+    );
   };
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F8FAFC]">
-      {/* 1. Collapsible App Sidebar */}
+      {/* 1. Collapsible App Sidebar (dapat dipinggirkan dengan tombol garis 3) */}
       <AppSidebar
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
+        onRoleChange={handleRoleChange}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        onToggle={() => setIsSidebarOpen((prev) => !prev)}
         onNewChat={resetChat}
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onSelectSession={loadSession}
+        onRestoreLastSession={restoreLastOpenedSession}
       />
 
-      {/* 2. Main Chat Area */}
-       <div className="flex flex-1 flex-col h-full overflow-hidden">
-        {/* Top Navigation Bar with Role and Backend/Mock Status */}
+      {/* 2. Main Chat Area with Smooth Layout Transition */}
+      <div
+        className={cn(
+          "flex flex-1 flex-col h-full overflow-hidden transition-all duration-300 ease-in-out",
+          isSidebarOpen ? "lg:pl-72" : "pl-0"
+        )}
+      >
+        {/* Top Navigation Bar with Role Switcher at Top-Right & Hamburger Menu (Garis 3) */}
         <TopNavbar
           currentRole={currentRole}
+          onRoleChange={handleRoleChange}
           isMockMode={isMockMode}
           onToggleMockMode={() => setIsMockMode(!isMockMode)}
           isBackendHealthy={isBackendHealthy}
-          onToggleSidebar={() => setIsSidebarOpen(true)}
+          onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
           onResetChat={resetChat}
+          isSidebarOpen={isSidebarOpen}
         />
 
         {/* Central Scrollable Chat Workspace */}
