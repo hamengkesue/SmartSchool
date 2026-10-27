@@ -13,7 +13,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 # Inisialisasi router dengan prefix dasar
 router = APIRouter(prefix="/api/v1", tags=["PDF Generation"])
 
-PDF_DIR = "generated_pdfs"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PDF_DIR = os.path.join(BASE_DIR, "generated_pdfs")
 os.makedirs(PDF_DIR, exist_ok=True)
 
 # 1. Fungsi Koneksi PostgreSQL Live
@@ -132,7 +133,32 @@ async def generate_spp_pdf(payload: dict = None):
 
 @router.get("/download-pdf/{file_id}")
 async def download_pdf(file_id: str):
-    file_path = os.path.join(PDF_DIR, f"laporan_spp_{file_id}.pdf")
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File PDF tidak ditemukan.")
-    return FileResponse(file_path, media_type="application/pdf", filename=f"Laporan_Tunggakan_SPP_{file_id}.pdf")
+    clean_id = file_id.replace(".pdf", "")
+    
+    candidates = [
+        os.path.join(PDF_DIR, file_id),
+        os.path.join(PDF_DIR, f"{clean_id}.pdf"),
+        os.path.join(PDF_DIR, f"laporan_spp_{clean_id}.pdf"),
+    ]
+    
+    found_file = None
+    for path in candidates:
+        if os.path.exists(path):
+            found_file = path
+            break
+            
+    if not found_file and os.path.exists(PDF_DIR):
+        for fname in os.listdir(PDF_DIR):
+            if clean_id in fname and fname.endswith(".pdf"):
+                found_file = os.path.join(PDF_DIR, fname)
+                break
+
+    if not found_file or not os.path.exists(found_file):
+        raise HTTPException(status_code=404, detail="File PDF tidak ditemukan di server.")
+        
+    return FileResponse(
+        found_file, 
+        media_type="application/pdf", 
+        filename="Laporan_Tunggakan_SPP.pdf",
+        headers={"Content-Disposition": "attachment; filename=Laporan_Tunggakan_SPP.pdf"}
+    )

@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserRole } from "@/types/chat.types";
+import { UserRole, ChatSession } from "@/types/chat.types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import {
   MessageSquarePlus,
@@ -14,6 +14,7 @@ import {
   ExternalLink,
   X,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,36 @@ interface AppSidebarProps {
   isOpen: boolean;
   onClose: () => void;
   onNewChat: () => void;
+  sessions?: ChatSession[];
+  activeSessionId?: string;
+  onSelectSession?: (sessionId: string) => void;
+  onDeleteSession?: (sessionId: string) => void;
+}
+
+function formatSessionDate(dateStr?: string): string {
+  if (!dateStr) return "Hari ini";
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return "Hari ini";
+    const now = new Date();
+    const isToday =
+      date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
+    if (isToday) {
+      return date.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+    }
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday =
+      date.getDate() === yesterday.getDate() &&
+      date.getMonth() === yesterday.getMonth() &&
+      date.getFullYear() === yesterday.getFullYear();
+    if (isYesterday) return "Kemarin";
+    return date.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+  } catch {
+    return "Hari ini";
+  }
 }
 
 export function AppSidebar({
@@ -32,15 +63,12 @@ export function AppSidebar({
   isOpen,
   onClose,
   onNewChat,
+  sessions = [],
+  activeSessionId,
+  onSelectSession,
+  onDeleteSession,
 }: AppSidebarProps) {
   const pathname = usePathname();
-
-  const SAMPLE_HISTORY = [
-    { id: "h1", title: "Syarat & Jadwal PPDB 2026", date: "Hari ini" },
-    { id: "h2", title: "Cek Tunggakan SPP Kelas X", date: "Hari ini" },
-    { id: "h3", title: "Ekstraksi PDF Berkas Syarat", date: "Kemarin" },
-    { id: "h4", title: "Format Cetak Laporan Keuangan", date: "18 Okt" },
-  ];
 
   return (
     <>
@@ -149,24 +177,66 @@ export function AppSidebar({
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 Riwayat Sesi
               </span>
+              {sessions.length > 0 && (
+                <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                  {sessions.length}
+                </span>
+              )}
             </div>
 
-            <div className="space-y-1">
-              {SAMPLE_HISTORY.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-lg text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors flex items-center justify-between group"
-                >
-                  <span className="truncate flex-1 pr-2">{item.title}</span>
-                  <span className="text-[10px] text-slate-400 shrink-0 font-medium group-hover:text-slate-600">
-                    {item.date}
-                  </span>
-                </button>
-              ))}
+            <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
+              {sessions.length > 0 ? (
+                sessions.map((item) => {
+                  const isActive = item.id === activeSessionId;
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => {
+                        onSelectSession?.(item.id);
+                        onClose();
+                      }}
+                      className={cn(
+                        "w-full px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between group cursor-pointer",
+                        isActive
+                          ? "bg-teal-50 text-teal-900 font-semibold border border-teal-200/80 shadow-2xs"
+                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1 pr-1.5">
+                        <MessageSquare
+                          className={cn(
+                            "w-3.5 h-3.5 shrink-0",
+                            isActive ? "text-teal-600" : "text-slate-400"
+                          )}
+                        />
+                        <span className="truncate">{item.title}</span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[10px] text-slate-400 font-medium group-hover:hidden">
+                          {formatSessionDate(item.updatedAt || item.createdAt)}
+                        </span>
+                        {onDeleteSession && (
+                          <button
+                            type="button"
+                            title="Hapus percakapan ini"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteSession(item.id);
+                            }}
+                            className="hidden group-hover:flex p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="px-3 py-4 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                  <p className="text-[11px]">Belum ada riwayat percakapan</p>
+                </div>
+              )}
             </div>
           </div>
 

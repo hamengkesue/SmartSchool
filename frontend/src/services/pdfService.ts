@@ -51,20 +51,21 @@ export async function uploadPdfDocument(
   formData.append("file", file);
   formData.append("is_knowledge_base", String(isKnowledgeBaseUpload));
 
+  const uploadUrl = FASTAPI_BASE_URL
+    ? `${FASTAPI_BASE_URL.replace(/\/$/, "")}/api/v1/upload-pdf`
+    : "http://127.0.0.1:8000/api/v1/upload-pdf";
+
   try {
-    const response = await fetch("https://cozily-elm-spousal.ngrok-free.dev/webhook/upload-pdf", {
+    const response = await fetch(uploadUrl, {
       method: "POST",
-      headers: {
-        "ngrok-skip-browser-warning": "true",
-      },
       body: formData,
     });
 
     if (response.ok) {
       return await response.json();
     }
-  } catch {
-    // fallback
+  } catch (err) {
+    console.warn("[SmartSchool RAG] Gagal upload ke FastAPI, beralih ke simulasi:", err);
   }
 
   // Fallback for seamless demo

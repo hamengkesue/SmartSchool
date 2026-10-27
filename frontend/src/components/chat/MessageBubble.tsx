@@ -45,13 +45,14 @@ export function MessageBubble({
   let displayContent = message.content || "";
 
   if (!extractedPdf && !isUser && displayContent) {
-    // Regex mencocokkan markdown link [Teks](http://.../download-pdf/xxx) atau URL langsung
-    const pdfRegex = /\[(?:Download PDF|Unduh PDF|.*?)\]\((https?:\/\/[^\s)]+\/api\/v1\/download-pdf\/[^\s)]+)\)/i;
+    // Regex mencocokkan markdown link [Unduh PDF](url) dari FastAPI/Supabase atau link download-pdf
+    const pdfRegex =
+      /\[(?:Download PDF|Unduh PDF|Dokumen PDF|Lihat PDF)\]\((https?:\/\/[^\s)]+)\)|\[(.*?)\]\((https?:\/\/[^\s)]+(?:\.pdf|\/download-pdf\/[^\s)]+)[^\s)]*)\)/i;
     const match = displayContent.match(pdfRegex);
 
     if (match) {
       const fullMarkdownLink = match[0];
-      const downloadUrl = match[1];
+      const downloadUrl = match[1] || match[3];
 
       // Hapus teks markdown link dari tampilan obrolan agar tidak mentah/ganda
       displayContent = displayContent.replace(fullMarkdownLink, "").trim();
