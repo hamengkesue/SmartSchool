@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import { useChatSession } from "@/hooks/useChatSession";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { TopNavbar } from "@/components/layout/TopNavbar";
@@ -8,10 +8,11 @@ import { ChatWorkspace } from "@/components/chat/ChatWorkspace";
 import { MultimodalInputBar } from "@/components/chat/MultimodalInputBar";
 import { PdfPreviewModal } from "@/components/pdf/PdfPreviewModal";
 import { Citation, GeneratedPdf } from "@/types/chat.types";
+import { cn } from "@/lib/utils";
 import confetti from "canvas-confetti";
 
 export default function ChatPage() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const {
     currentRole,
@@ -32,16 +33,16 @@ export default function ChatPage() {
     closePdfPreview,
   } = useChatSession();
 
+  // Set default sidebar open state menurut lebar layar saat pertama kali dimuat
   useEffect(() => {
-    const savedRole = localStorage.getItem("active_user_role");
-    if (savedRole) {
-      setCurrentRole(savedRole as typeof currentRole);
+    if (typeof window !== "undefined") {
+      setIsSidebarOpen(window.innerWidth >= 1024);
     }
-  }, [setCurrentRole]);
+  }, []);
 
   const handleRoleChange = (newRole: typeof currentRole) => {
     setCurrentRole(newRole);
-    localStorage.setItem("active_user_role", newRole); 
+    localStorage.setItem("active_user_role", newRole);
   };
 
   // Handles citation click (RAG Citation Pill)
@@ -56,7 +57,6 @@ export default function ChatPage() {
 
   // Handles Export SPP Table to PDF
   const handleExportSppPdf = () => {
-    // Trigger festive micro-animation
     confetti({
       particleCount: 60,
       spread: 60,
@@ -64,18 +64,20 @@ export default function ChatPage() {
       colors: ["#1B365D", "#0D9488", "#10B981"],
     });
 
-    // Send automated prompt to request formal PDF generation
-    sendMessage("Tolong buatkan dan cetak rekapitulasi data tunggakan SPP ini ke dalam format dokumen PDF resmi.");
+    sendMessage(
+      "Tolong buatkan dan cetak rekapitulasi data tunggakan SPP ini ke dalam format dokumen PDF resmi."
+    );
   };
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F8FAFC]">
-      {/* 1. Collapsible App Sidebar */}
+      {/* 1. App Sidebar yang sudah terhubung dengan state isSidebarOpen */}
       <AppSidebar
         currentRole={currentRole}
         onRoleChange={handleRoleChange}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        onToggle={() => setIsSidebarOpen((prev) => !prev)} // 🟢 Fungsi pemicu toggle buka-tutup
         onNewChat={resetChat}
         sessions={sessions}
         activeSessionId={sessionId}
@@ -83,16 +85,23 @@ export default function ChatPage() {
         onDeleteSession={deleteSession}
       />
 
-      {/* 2. Main Chat Area */}
-       <div className="flex flex-1 flex-col h-full overflow-hidden">
-        {/* Top Navigation Bar with Role and Backend/Mock Status */}
+      {/* 2. Main Chat Area dengan transisi lebar (padding-left) otomatis */}
+      <div
+        className={cn(
+          "flex flex-1 flex-col h-full overflow-hidden transition-all duration-300 ease-in-out",
+          isSidebarOpen ? "lg:pl-72" : "pl-0"
+        )}
+      >
+        {/* Top Navigation Bar yang memicu perubahan state saat hamburger diklik */}
         <TopNavbar
           currentRole={currentRole}
+          onRoleChange={handleRoleChange}
           isMockMode={isMockMode}
           onToggleMockMode={() => setIsMockMode(!isMockMode)}
           isBackendHealthy={isBackendHealthy}
-          onToggleSidebar={() => setIsSidebarOpen(true)}
+          onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)} // 🟢 Pemicu toggle dari tombol navbar atas
           onResetChat={resetChat}
+          isSidebarOpen={isSidebarOpen}
         />
 
         {/* Central Scrollable Chat Workspace */}
@@ -107,7 +116,6 @@ export default function ChatPage() {
             onExportSppPdf={handleExportSppPdf}
           />
 
-          {/* Multimodal Input Bar (Normal, Attached PDF, Voice Recording) */}
           <MultimodalInputBar
             onSendMessage={sendMessage}
             isLoading={isLoading}

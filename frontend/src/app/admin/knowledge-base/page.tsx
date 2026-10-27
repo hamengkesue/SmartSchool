@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { TopNavbar } from "@/components/layout/TopNavbar";
 import { useChatSession } from "@/hooks/useChatSession";
 import { KnowledgeDocument } from "@/types/api.types";
 import { getKnowledgeBaseDocuments, uploadPdfDocument, validatePdfFile } from "@/services/pdfService";
-import { formatFileSize } from "@/lib/utils";
+import { formatFileSize, cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { PdfPreviewModal } from "@/components/pdf/PdfPreviewModal";
@@ -28,13 +29,21 @@ import {
 } from "lucide-react";
 
 export default function KnowledgeBasePage() {
+  const router = useRouter();
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState<boolean>(true);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadSuccessMsg, setUploadSuccessMsg] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // Set default sidebar state based on screen width
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsSidebarOpen(window.innerWidth >= 1024);
+    }
+  }, []);
 
   const [previewModal, setPreviewModal] = useState<{
     isOpen: boolean;
@@ -51,6 +60,10 @@ export default function KnowledgeBasePage() {
     setIsMockMode,
     isBackendHealthy,
     resetChat,
+    sessions,
+    activeSessionId,
+    loadSession,
+    restoreLastOpenedSession,
   } = useChatSession();
 
   // Load existing knowledge base documents
@@ -131,18 +144,39 @@ export default function KnowledgeBasePage() {
         onRoleChange={setCurrentRole}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
-        onNewChat={resetChat}
+        onToggle={() => setIsSidebarOpen((prev) => !prev)}
+        onNewChat={() => {
+          resetChat();
+          router.push("/");
+        }}
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onSelectSession={(id) => {
+          loadSession(id);
+          router.push("/");
+        }}
+        onRestoreLastSession={() => {
+          restoreLastOpenedSession();
+          router.push("/");
+        }}
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-72 h-full overflow-y-auto">
+      <div
+        className={cn(
+          "flex-1 flex flex-col min-w-0 h-full overflow-y-auto transition-all duration-300 ease-in-out",
+          isSidebarOpen ? "lg:pl-72" : "pl-0"
+        )}
+      >
         {/* Top Navbar */}
         <TopNavbar
           currentRole={currentRole}
+          onRoleChange={setCurrentRole}
           isMockMode={isMockMode}
           onToggleMockMode={() => setIsMockMode(!isMockMode)}
           isBackendHealthy={isBackendHealthy}
-          onToggleSidebar={() => setIsSidebarOpen(true)}
+          onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+          isSidebarOpen={isSidebarOpen}
         />
 
         {/* Content Body */}

@@ -21,6 +21,7 @@ interface AppSidebarProps {
   onRoleChange: (role: UserRole) => void;
   isOpen: boolean;
   onClose: () => void;
+  onToggle: () => void;
   onNewChat: () => void;
   sessions?: ChatSession[];
   activeSessionId?: string;
@@ -55,10 +56,11 @@ function formatSessionDate(dateStr?: string): string {
 }
 
 export function AppSidebar({
-  currentRole,
-  onRoleChange,
+  // currentRole,
+  // onRoleChange,
   isOpen,
   onClose,
+  onToggle,
   onNewChat,
   sessions = [],
   activeSessionId,
@@ -80,7 +82,9 @@ export function AppSidebar({
       {/* Sidebar Container */}
       <aside
         className={cn(
-          "fixed top-0 bottom-0 left-0 z-40 w-72 bg-white border-r border-slate-200/90 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0",
+          // 🟢 Pastikan ada class 'fixed' agar sidebar melayang dan tidak memakan kapasitas grid layout utama
+          "fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 transition-transform duration-300 ease-in-out",
+          // Pemicu geser
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -171,7 +175,6 @@ export function AppSidebar({
                       key={item.id}
                       onClick={() => {
                         onSelectSession?.(item.id);
-                        onClose();
                       }}
                       className={cn(
                         "w-full px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between group cursor-pointer",
@@ -230,10 +233,10 @@ export function AppSidebar({
           </div>
         </div>
 
-        {/* Bottom Section: Role Switcher Card */}
+        {/* Bottom Section: Role Switcher Card
         <div className="p-4 border-t border-slate-100 bg-slate-50/50">
           <RoleSwitcher currentRole={currentRole} onRoleChange={onRoleChange} />
-        </div>
+        </div> */}
       </aside>
     </>
   );

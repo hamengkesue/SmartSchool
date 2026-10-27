@@ -203,7 +203,7 @@ Data rincian nama siswa dan riwayat pembayaran SPP bersifat rahasia dan hanya da
 1. **Admin TU / Bendahara Sekolah** (untuk melihat rekapitulasi seluruh siswa).
 2. **Wali Murid Terdaftar** (hanya untuk melihat tagihan putra/putri yang bersangkutan).
 
-Untuk keperluan demo atau simulasi, silakan gunakan **Role Switcher** di sidebar sebelah kiri dan pilih peran **Admin Keuangan / TU**.`,
+Untuk keperluan demo atau simulasi, silakan gunakan menu **Ganti Peran (RBAC)** di **sudut kanan atas navbar** dan pilih peran **Admin Keuangan / TU**.`,
         type: "text",
         tokensUsed: { prompt: 210, completion: 95, total: 305 },
         latencyMs: 320,
