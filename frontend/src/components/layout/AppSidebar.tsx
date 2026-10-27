@@ -88,23 +88,16 @@ export function AppSidebar({
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        {/* Top Header: School Logo & Title */}
+        {/* Top Header: Title */}
         <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 group">
-            <img
-              src="/images/logo-sekolah.png"
-              alt="Logo SmartSchool"
-              className="w-10 h-10 object-contain drop-shadow-xs transition-transform group-hover:scale-105"
-            />
-            <div>
-              <h1 className="text-sm font-black text-[#1B365D] tracking-tight leading-none">
-                SmartSchool AI
-              </h1>
-              <p className="text-[11px] font-medium text-[#0D9488] mt-1 flex items-center gap-1">
-                <Sparkles className="w-3 h-3" />
-                Asisten Akademik & SPP
-              </p>
-            </div>
+          <Link href="/" className="group">
+            <h1 className="text-sm font-black text-[#1B365D] tracking-tight leading-none">
+              SmartSchool AI
+            </h1>
+            <p className="text-[11px] font-medium text-[#0D9488] mt-1 flex items-center gap-1">
+              <Sparkles className="w-3 h-3" />
+              Asisten Akademik & SPP
+            </p>
           </Link>
 
           {/* Close button for mobile */}

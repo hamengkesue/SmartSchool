@@ -1,0 +1,140 @@
+# 🚀 Master Implementation Plan: SmartSchool AI Assistant (Supabase & Advanced RAG)
+
+Dokumen ini memuat peta jalan pengembangan (*roadmap*) dan spesifikasi teknis arsitektur terpadu berbasis **Supabase Cloud** (Database & Storage) serta **Qdrant Cloud + OpenAI** (Advanced RAG Knowledge Base).
+
+---
+
+## 🏗️ Gambaran Arsitektur Terpadu (Supabase-First Ecosystem)
+
+```mermaid
+graph TD
+    User([Pengguna: Siswa / Wali / Admin]) --> Frontend[Next.js 14 Frontend UI]
+    Frontend -->|POST /api/v1/chat + History| FastAPI[FastAPI Backend Engine]
+    
+    subgraph "1. Data Finansial & Dokumen (Supabase)"
+        FastAPI -->|Query Live / Dynamic Filter| SupaDB[(Supabase PostgreSQL: data_spp)]
+        FastAPI -->|Simpan Dokumen Laporan| SupaStorage[(Supabase Storage: Bucket pdfs)]
+    end
+    
+    subgraph "2. Knowledge Base & Reasoning (AI & RAG)"
+        FastAPI -->|Similarity Search| Qdrant[(Qdrant Cloud Vector Store)]
+        FastAPI -->|Embeddings text-embedding-3-small| OpenAI_Emb[OpenAI Embedding Engine]
+        FastAPI -->|LLM Reasoning gpt-4o-mini| OpenAI_Chat[OpenAI Chat Completion]
+    end
+    
+    subgraph "3. PDF Rendering Engine"
+        FastAPI -->|Kompilasi Data Live| ReportLab[ReportLab Professional Engine]
+        ReportLab -->|Upload PDF Biner| SupaStorage
+    end
+```
+
+---
+
+## 📋 Pilar Rekomendasi Teknis Rinci
+
+### 1. Fondasi Database: Supabase Cloud
+- **Single Source of Truth:** Semua endpoint backend ([main.py](file:///c:/laragon/www/Project_Malay/backend/app/main.py), [chat_router.py](file:///c:/laragon/www/Project_Malay/backend/app/routers/chat_router.py), [pdf_router.py](file:///c:/laragon/www/Project_Malay/backend/app/routers/pdf_router.py)) menggunakan **koneksi Supabase yang seragam** via `supabase-py` SDK / connection pooling.
+- **Data Nyata Sekolah:** Tabel `data_spp` di Supabase diisi dengan data real yang bersumber dari cadangan ERP (`smartschool_backup.sql`).
+- **Penyimpanan Berkas PDF:** Dokumen laporan rekapitulasi tunggakan yang dicetak diunggah ke bucket **Supabase Storage** (`pdfs`), menghasilkan tautan unduhan publik yang dapat diakses dari mana saja.
+
+### 2. Peningkatan RAG (Knowledge Base Sekolah)
+- **Semantic Text Splitter:** Mengganti pemotongan string kasar 800 karakter dengan metode pembagian semantik berbasis batas paragraf (`\n\n`) dan judul bab, dengan overlap kontekstual 150-200 token.
+- **Rich Vector Metadata:** Menyimpan metadata komprehensif pada setiap poin Qdrant:
+  - `source`: Nama file pedoman (misal `Buku_Panduan_PPDB_2026.pdf`).
+  - `page`: Nomor halaman asli dokumen.
+  - `category`: Jenis informasi (`ppdb`, `tata_tertib`, `biaya_akademik`).
+  - `snippet`: Potongan teks verbatim untuk ditampilkan sebagai kutipan (*citations*) di UI.
+- **Similarity Threshold & Rerank:** Menetapkan batas kemiripan kosinus minimal (contoh: cosine score $\ge 0.72$) agar AI tidak memaksakan mengutip dokumen yang tidak relevan.
+- **Mini-RAG Dokumen Upload Pengguna:** Dokumen PDF yang diunggah pengguna di ruang chat dipecah dan diproses secara semantik, menghilangkan pembatasan statis 12.000 karakter.
+
+### 3. Dynamic Tooling & Multi-Turn Memory
+- **AI Function Calling Dinamis:** AI memanggil fungsi Supabase dengan argumen terstruktur (`nama_siswa`, `kelas`, `status_pembayaran`, atau `summary_mode`).
+- **Multi-Turn Chat History:** Frontend menyertakan riwayat 6-10 percakapan terakhir sehingga AI memahami konteks kata ganti dan pertanyaan sambungan.
+
+---
+
+## 🗺️ Roadmap & Fase Implementasi
+
+### Fase 1: Standardisasi Supabase Backend & Kredensial Lingkungan
+- **Tujuan:** Menjadikan Supabase sebagai satu-satunya pusat data dan menghilangkan seluruh koneksi residual ke `localhost:5432`.
+- **Langkah Kerja:**
+  1. Buat service terpusat `backend/app/services/supabase_service.py` untuk menginisialisasi client Supabase dengan penanganan koneksi yang tangguh.
+  2. Perbarui file `backend/.env` dengan variabel lengkap:
+     - `SUPABASE_URL`
+     - `SUPABASE_KEY` (Anon / Service Role Key)
+  3. Pastikan skema tabel `data_spp` di Supabase selaras dengan kolom yang dibutuhkan: `nisn`, `nama`, `kelas`, `nominal_tagihan`, `status_pembayaran`, `periode_bulan`, `nomor_hp_wali`.
+  4. Migrasikan endpoint `main.py` dan `pdf_router.py` agar membaca dari Supabase, bukan PostgreSQL lokal.
+
+---
+
+### Fase 2: Dynamic Query Tooling ke Supabase (Role-Based Access)
+- **Tujuan:** Memberdayakan AI untuk mencari data siswa di Supabase secara presisi berdasarkan pertanyaan pengguna.
+- **Langkah Kerja:**
+  1. Perbarui definisi fungsi OpenAI Tools `query_spp_supabase` di `chat_router.py`:
+     ```python
+     {
+         "name": "query_spp_supabase",
+         "description": "Cari data tunggakan SPP siswa di Supabase berdasarkan nama, kelas, atau status.",
+         "parameters": {
+             "type": "object",
+             "properties": {
+                 "nama_siswa": {"type": "string", "description": "Nama siswa yang dicari (opsional)"},
+                 "kelas": {"type": "string", "description": "Tingkat/ruang kelas contoh 'X MIPA 1' (opsional)"},
+                 "status": {"type": "string", "enum": ["BELUM LUNAS", "LUNAS", "SEMUA"], "default": "BELUM LUNAS"},
+                 "mode": {"type": "string", "enum": ["summary", "list"], "default": "list"}
+             }
+         }
+     }
+     ```
+  2. Implementasikan logika query SDK Supabase yang dinamis (`supabase.table("data_spp").select("*").ilike(...)`).
+  3. Pertahankan proteksi RBAC: Hanya role **Admin Keuangan & TU** yang diizinkan mengakses data individual siswa.
+
+---
+
+### Fase 3: Modernisasi RAG Pipeline (Qdrant Cloud + Semantic Chunking)
+- **Tujuan:** Menghasilkan jawaban pedoman sekolah yang akurat, berbobot, dan dilengkapi kutipan halaman resmi.
+- **Langkah Kerja:**
+  1. Refactor fungsi `split_text_into_chunks` di `rag_service.py` menggunakan pembagian berbasis struktur paragraf logis.
+  2. Tambahkan metadata `category` dan `page` pada fungsi `index_pdf_document`.
+  3. Hubungkan tool `search_school_knowledge_base` di `chat_router.py` agar mengembalikan kutipan terstruktur beserta nomor halaman dan persentase relevansi.
+  4. Perbaiki pembacaan PDF lampiran chat pengguna: jika dokumen panjang (> 10 halaman), lakukan ekstraksi dan pencarian semantik lokal alih-alih hard-truncation 12.000 karakter.
+
+---
+
+### Fase 4: Multi-Turn Conversation Memory (Riwayat Chat)
+- **Tujuan:** Menjamin AI mengingat alur percakapan sebelumnya tanpa kehilangan konteks.
+- **Langkah Kerja:**
+  1. Perbarui skema `ChatRequest` di `backend/app/routers/chat_router.py` untuk menerima `history: List[dict]` (daftar pesan role `user` dan `assistant`).
+  2. Modifikasi `frontend/src/services/chatService.ts` dan hook `useChatSession.ts` agar mengirimkan 6 pesan obrolan terakhir dari sesi aktif.
+  3. Rangkai payload OpenAI: `System Prompt` $\rightarrow$ `History Messages` $\rightarrow$ `Current Message`.
+
+---
+
+### Fase 5: Harmonisasi Generator PDF & Integrasi Supabase Storage
+- **Tujuan:** Mencetak laporan biner resmi ReportLab ber-kop surat sekolah dan menyimpannya secara permanen di cloud.
+- **Langkah Kerja:**
+  1. Standarisasi engine ke **ReportLab** (tata letak tabel profesional, warna korporat `#1B365D`, kop surat resmi).
+  2. Setelah file PDF dibuat di backend, upload file tersebut ke bucket Supabase Storage `pdfs`.
+  3. Dapatkan Public URL resmi dari Supabase (`supabase.storage.from_("pdfs").get_public_url(filename)`).
+  4. Kembalikan URL publik tersebut ke kartu unduhan di obrolan AI frontend.
+
+---
+
+### Fase 6: Transparansi Error & Evaluasi Frontend
+- **Tujuan:** Menghilangkan kebingungan akibat data dummy palsu dan memastikan pengguna mengetahui status server sebenarnya.
+- **Langkah Kerja:**
+  1. Nonaktifkan silent mock fallback di `frontend/src/services/chatService.ts`: jika backend mengembalikan error atau konfigurasi Supabase/OpenAI belum diisi, tampilkan pesan diagnostik yang jujur dan jelas.
+  2. Perbarui indikator status di `TopNavbar.tsx` agar menampilkan status valid: **Supabase Connected**, **Qdrant Ready**, atau **API Standby**.
+
+---
+
+## ⏱️ Matriks Prioritas Eksekusi
+
+| Prioritas | Fase | Fokus Utama | Target Hasil |
+|:---:|---|---|---|
+| 🔴 **P0** | **Fase 1** | Standardisasi Kredensial Supabase | Semua modul membaca tabel Supabase yang sama |
+| 🔴 **P0** | **Fase 6** | Matikan Silent Fallback Dummy | Pengguna tahu persis data berasal dari Supabase nyata |
+| 🟡 **P1** | **Fase 2** | Dynamic Query Tooling Supabase | Pencarian per siswa/kelas bekerja cerdas |
+| 🟡 **P1** | **Fase 3** | Peningkatan RAG & Semantic Chunking | Kutipan pasal tata tertib & PPDB akurat |
+| 🟡 **P1** | **Fase 4** | Multi-Turn Memory | AI tidak amnesia saat percakapan berlanjut |
+| 🟢 **P2** | **Fase 5** | ReportLab PDF + Supabase Storage | Dokumen resmi tersimpan aman di cloud |
