@@ -94,7 +94,11 @@ export function EmptyWelcomeScreen({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          {INITIAL_GUEST_PROMPTS.map((prompt) => {
+          {INITIAL_GUEST_PROMPTS.filter((prompt) => {
+            // Sembunyikan card "Unggah PDF" untuk non-admin
+            if (prompt.category === "pdf_read" && currentRole !== "admin") return false;
+            return true;
+          }).map((prompt) => {
             const colors = getColorClasses(prompt.colorScheme);
             const isRestrictedForRole =
               prompt.category === "spp" && currentRole === "guest";

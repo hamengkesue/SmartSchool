@@ -193,7 +193,7 @@ export function useChatSession() {
   );
 
   const sendMessage = useCallback(
-    async (text: string, attachment?: FileAttachment | null) => {
+    async (text: string, attachment?: FileAttachment | null, pdfText?: string) => {
       if (!text.trim() && !attachment) return;
 
       const userMsgId = `msg-user-${Date.now()}`;
@@ -258,6 +258,7 @@ export function useChatSession() {
           role: currentRole,
           pdfAttachmentId: attachment?.id,
           pdfAttachmentName: attachment?.name,
+          pdfContent: pdfText || "",
           forceMock: isMockMode,
         });
 

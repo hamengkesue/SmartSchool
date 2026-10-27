@@ -9,6 +9,7 @@ export interface SendMessageParams {
   role: UserRole;
   pdfAttachmentId?: string;
   pdfAttachmentName?: string;
+  pdfContent?: string;       // Teks yang diekstrak dari file PDF yang dilampirkan
   forceMock?: boolean;
 }
 
@@ -19,7 +20,7 @@ export interface SendMessageParams {
 export async function sendChatMessage(
   params: SendMessageParams
 ): Promise<{ response: ApiChatResponse; isFromMock: boolean }> {
-  const { message, sessionId, role, pdfAttachmentId, pdfAttachmentName, forceMock } = params;
+  const { message, sessionId, role, pdfAttachmentId, pdfAttachmentName, pdfContent, forceMock } = params;
 
   if (forceMock) {
     await new Promise((res) => setTimeout(res, 600));
@@ -44,6 +45,8 @@ export async function sendChatMessage(
         message: message,
         role: role,
         session_id: sessionId,
+        pdf_content: pdfContent || "",
+        pdf_filename: pdfAttachmentName || "",
       }),
       // AbortController timeout 60 detik untuk mengakomodasi eksekusi model AI & tools
       signal: AbortSignal.timeout(60000),

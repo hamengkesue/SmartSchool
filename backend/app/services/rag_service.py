@@ -18,7 +18,7 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 QDRANT_URL = os.getenv("QDRANT_URL", "https://23aa2cf8-6d70-434f-bb9e-8636b64b135b.eu-west-2-0.aws.cloud.qdrant.io")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
-COLLECTION_NAME = os.getenv("QDRANT_COLLECTION", "smartschool_db")
+COLLECTION_NAME = os.getenv("QDRANT_COLLECTION", "testing_collection")
 
 openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 qdrant_client = (
@@ -28,7 +28,7 @@ qdrant_client = (
 )
 
 def ensure_collection_exists():
-    """Memastikan collection smartschool_db siap di Qdrant Cloud"""
+    """Memastikan collection testing_collection siap di Qdrant Cloud"""
     if not qdrant_client:
         return
     try:

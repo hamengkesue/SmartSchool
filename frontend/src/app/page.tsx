@@ -111,6 +111,8 @@ export default function ChatPage() {
           <MultimodalInputBar
             onSendMessage={sendMessage}
             isLoading={isLoading}
+            currentRole={currentRole}
+            isMockMode={isMockMode}
           />
         </main>
       </div>

@@ -29,6 +29,8 @@ class ChatRequest(BaseModel):
     message: str
     role: str = "guest"
     session_id: str = ""
+    pdf_content: str = ""  # Konten teks PDF yang diekstrak dari file yang dilampirkan
+    pdf_filename: str = ""  # Nama file PDF yang dilampirkan
 
 # --- FUNGSI 1: AMBIL DATA DARI SUPABASE DENGAN CEK RBAC ---
 def get_spp_arrears(role: str = "guest"):
@@ -188,9 +190,24 @@ async def chat_with_ai(request: ChatRequest):
             "- Jelaskan dengan sopan bahwa informasi keuangan dan tunggakan SPP siswa bersifat rahasia dan hanya dapat diakses oleh Admin Keuangan & Tata Usaha (TU) sekolah. Arahkan pengguna untuk login sebagai Admin jika berwenang.\n"
         )
 
+    # Inject konten PDF ke system prompt jika ada file yang dilampirkan
+    if request.pdf_content and request.pdf_content.strip():
+        pdf_name = request.pdf_filename or "dokumen.pdf"
+        system_instruction += (
+            f"\n\nDOKUMEN PDF YANG DILAMPIRKAN OLEH PENGGUNA:\n"
+            f"Nama File: {pdf_name}\n"
+            f"Isi Dokumen (diekstrak):\n"
+            f"---\n{request.pdf_content[:12000]}\n---\n\n"
+            "INSTRUKSI PENTING: Pengguna telah melampirkan dokumen PDF di atas. "
+            "Baca dan pahami isi dokumen tersebut. "
+            "Jika pengguna meminta rangkuman, buat rangkuman yang komprehensif dan terstruktur dalam Bahasa Indonesia. "
+            "Jika pengguna mengajukan pertanyaan, jawab berdasarkan isi dokumen. "
+            "JANGAN mengatakan kamu tidak bisa membaca PDF — kamu sudah menerimanya di atas."
+        )
+
     messages = [
         {"role": "system", "content": system_instruction},
-        {"role": "user", "content": request.message}
+        {"role": "user", "content": request.message or f"Baca dan rangkum dokumen PDF '{request.pdf_filename}' yang saya lampirkan."}
     ]
 
     # Minta OpenAI merespons
