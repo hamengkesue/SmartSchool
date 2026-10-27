@@ -8,10 +8,10 @@ export interface RequestOptions extends RequestInit {
 }
 
 export const FASTAPI_BASE_URL =
-  process.env.NEXT_PUBLIC_FASTAPI_URL || "https://smartschool-api.ngrok-free.app";
+  process.env.NEXT_PUBLIC_FASTAPI_URL || "http://127.0.0.1:8000";
 
 export const N8N_WEBHOOK_URL =
-  process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || "https://smartschool-n8n.ngrok-free.app/webhook/chat";
+  process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || "http://127.0.0.1:8000/api/v1/chat";
 
 export async function apiClient<T>(
   endpoint: string,

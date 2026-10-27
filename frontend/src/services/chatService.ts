@@ -1,5 +1,5 @@
-import { apiClient, N8N_WEBHOOK_URL } from "./apiClient";
-import { ApiChatRequest, ApiChatResponse } from "../types/api.types";
+import { FASTAPI_BASE_URL } from "./apiClient";
+import { ApiChatResponse } from "../types/api.types";
 import { UserRole } from "../types/chat.types";
 import { getMockResponse } from "../mocks/mockChatResponses";
 
@@ -13,7 +13,7 @@ export interface SendMessageParams {
 }
 
 /**
- * Sends a user query to the AI engine (FastAPI / n8n via Ngrok).
+ * Sends a user query to the AI engine (FastAPI /api/v1/chat).
  * Automatically falls back to mock responses if backend is unreachable or forceMock is true.
  */
 export async function sendChatMessage(
@@ -27,61 +27,61 @@ export async function sendChatMessage(
     return { response: mock, isFromMock: true };
   }
 
-  // 1. Langsung panggil n8n Webhook jika URL-nya tersedia (Mencegah error 404 dari FastAPI)
-  const webhookUrl = N8N_WEBHOOK_URL || "https://cozily-elm-spousal.ngrok-free.dev/webhook/chat";
+  // URL Target FastAPI (Default: http://127.0.0.1:8000/api/v1/chat)
+  const chatApiUrl =
+    process.env.NEXT_PUBLIC_FASTAPI_CHAT_URL ||
+    (FASTAPI_BASE_URL
+      ? `${FASTAPI_BASE_URL.replace(/\/$/, "")}/api/v1/chat`
+      : "http://127.0.0.1:8000/api/v1/chat");
 
   try {
-    const response = await fetch(webhookUrl, {
+    const response = await fetch(chatApiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "ngrok-skip-browser-warning": "true",
       },
       body: JSON.stringify({
-        query: message,
+        message: message,
+        role: role,
         session_id: sessionId,
-        user_role: role,
-        attachment_id: pdfAttachmentId,
       }),
-      // AbortController untuk timeout 30 detik
-      signal: AbortSignal.timeout(30000),
+      // AbortController timeout 60 detik untuk mengakomodasi eksekusi model AI & tools
+      signal: AbortSignal.timeout(60000),
     });
 
     if (response.ok) {
-      const data: ApiChatResponse = await response.json();
-      return { response: data, isFromMock: false };
+      const data = await response.json();
+      const answer =
+        data.content ||
+        data.answer ||
+        data.message ||
+        (typeof data === "string" ? data : "");
+
+      return {
+        response: {
+          answer,
+          type: data.type || "text",
+          citations: data.citations,
+          sppData: data.sppData,
+          generatedPdf: data.generatedPdf,
+        },
+        isFromMock: false,
+      };
+    } else {
+      console.warn(
+        `[SmartSchool AI] FastAPI mengembalikan status ${response.status}: ${response.statusText}`
+      );
     }
   } catch (err) {
-    console.warn("[SmartSchool AI] Gagal terhubung ke Webhook n8n, beralih ke mock:", err);
+    console.warn("[SmartSchool AI] Gagal terhubung ke FastAPI backend, beralih ke mock:", err);
   }
 
-  // 2. Optional secondary fallback to n8n webhook if FastAPI is unreachable
-  if (N8N_WEBHOOK_URL) {
-    try {
-      const n8nResult = await apiClient<ApiChatResponse>(N8N_WEBHOOK_URL, {
-        method: "POST",
-        body: JSON.stringify({
-          query: message,
-          session_id: sessionId,
-          user_role: role,
-          attachment_id: pdfAttachmentId,
-        }),
-        timeoutMs: 30000,
-      });
-
-      if (n8nResult.data && !n8nResult.error) {
-        return { response: n8nResult.data, isFromMock: false };
-      }
-    } catch {
-      // Proceed to mock fallback
-    }
-  }
-
-  // 3. Graceful Fallback: Generate intelligent mock response so UI remains 100% interactive
+  // Graceful Fallback: Generate intelligent mock response so UI remains 100% interactive
   console.warn(
-    "[SmartSchool AI] Backend Ngrok tunnel offline or timed out. Activating smart mock response."
+    "[SmartSchool AI] Backend FastAPI offline atau timed out. Mengaktifkan respons simulasi (mock)."
   );
   await new Promise((res) => setTimeout(res, 400));
   const fallbackMock = getMockResponse(message, role, !!pdfAttachmentId, pdfAttachmentName);
   return { response: fallbackMock, isFromMock: true };
 }
+

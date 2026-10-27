@@ -4,10 +4,11 @@ from pydantic import BaseModel
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from routers.pdf_router import router as pdf_router
+from fastapi import FastAPI
+from routers import chat_router, knowledge_router
 
 app = FastAPI(title="SmartSchool AI Live Backend API")
 
-app.include_router(pdf_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,10 +16,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-class SppQueryRequest(BaseModel):
-    query: str
-    role: str
+app.include_router(chat_router.router)
+app.include_router(pdf_router)
+app.include_router(knowledge_router.router)
+@app.get("/")
+def read_root():
+    return {"message": "Server SmartSchool Aktif"}
 
 # Fungsi koneksi langsung ke PostgreSQL lokal Anda
 def get_db_connection():
@@ -38,6 +41,9 @@ def health_check():
         "fastapi": True,
         "mode": "live"
     }
+
+class SppQueryRequest(BaseModel):
+    role: str = "guest"
 
 @app.post("/api/spp")
 async def cek_data_spp(request: SppQueryRequest):

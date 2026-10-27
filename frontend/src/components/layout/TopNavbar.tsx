@@ -80,12 +80,12 @@ export function TopNavbar({
           ) : isBackendHealthy ? (
             <div className="flex items-center gap-1.5 text-emerald-700 font-medium">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
-              <span className="text-[11px] sm:text-xs">FastAPI Ngrok Connected</span>
+              <span className="text-[11px] sm:text-xs">FastAPI Connected</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 text-slate-500">
               <span className="w-2 h-2 rounded-full bg-slate-400" />
-              <span className="text-[11px] sm:text-xs">Ngrok Standby</span>
+              <span className="text-[11px] sm:text-xs">FastAPI Standby</span>
             </div>
           )}
 

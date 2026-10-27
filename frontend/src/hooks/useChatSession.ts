@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { ChatMessage, UserRole, FileAttachment } from "../types/chat.types";
+import { ChatMessage, UserRole, FileAttachment, ChatSession } from "../types/chat.types";
 import { sendChatMessage } from "../services/chatService";
 import { checkBackendHealth } from "../services/apiClient";
+
+const SESSIONS_STORAGE_KEY = "smartschool_chat_sessions_v1";
+const ACTIVE_SESSION_KEY = "smartschool_active_session_id";
 
 export const INITIAL_GUEST_PROMPTS = [
   {
@@ -52,9 +55,10 @@ export function useChatSession() {
   const [currentRole, setCurrentRole] = useState<UserRole>("guest");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isMockMode, setIsMockMode] = useState<boolean>(true); // default true for rock-solid demo
+  const [isMockMode, setIsMockMode] = useState<boolean>(false); // default live mode (FastAPI)
   const [isBackendHealthy, setIsBackendHealthy] = useState<boolean>(false);
   const [sessionId, setSessionId] = useState<string>(() => `session-${Date.now()}`);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
 
   // PDF Preview Modal state
   const [previewPdfModal, setPreviewPdfModal] = useState<{
@@ -67,6 +71,41 @@ export function useChatSession() {
     title: "",
     page: 1,
   });
+
+  // 1. Muat riwayat sesi dari LocalStorage saat pertama kali aplikasi dibuka
+  useEffect(() => {
+    try {
+      const savedSessionsStr = localStorage.getItem(SESSIONS_STORAGE_KEY);
+      const savedActiveId = localStorage.getItem(ACTIVE_SESSION_KEY);
+
+      if (savedSessionsStr) {
+        const parsed: ChatSession[] = JSON.parse(savedSessionsStr);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSessions(parsed);
+          const activeSession = parsed.find((s) => s.id === savedActiveId) || parsed[0];
+          setSessionId(activeSession.id);
+          setMessages(activeSession.messages || []);
+          setCurrentRole(activeSession.role || "guest");
+        }
+      }
+    } catch (e) {
+      console.warn("Gagal memuat sesi dari localStorage:", e);
+    }
+  }, []);
+
+  // Helper untuk menyimpan array sesi ke localStorage
+  const persistSessions = useCallback(
+    (updatedSessions: ChatSession[], activeId: string) => {
+      setSessions(updatedSessions);
+      try {
+        localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(updatedSessions));
+        localStorage.setItem(ACTIVE_SESSION_KEY, activeId);
+      } catch (err) {
+        console.warn("Gagal menyimpan ke localStorage:", err);
+      }
+    },
+    []
+  );
 
   // Check backend health periodically
   useEffect(() => {
@@ -103,10 +142,55 @@ export function useChatSession() {
     setCurrentRole(newRole);
   }, []);
 
+  // Memulai obrolan baru tanpa menghapus sesi sebelumnya
   const resetChat = useCallback(() => {
+    const newSessionId = `session-${Date.now()}`;
     setMessages([]);
-    setSessionId(`session-${Date.now()}`);
+    setSessionId(newSessionId);
+    try {
+      localStorage.setItem(ACTIVE_SESSION_KEY, newSessionId);
+    } catch {}
   }, []);
+
+  // Berpindah ke sesi lain yang dipilih dari sidebar
+  const switchSession = useCallback(
+    (targetId: string) => {
+      const target = sessions.find((s) => s.id === targetId);
+      if (target) {
+        setSessionId(target.id);
+        setMessages(target.messages || []);
+        setCurrentRole(target.role || "guest");
+        try {
+          localStorage.setItem(ACTIVE_SESSION_KEY, target.id);
+        } catch {}
+      }
+    },
+    [sessions]
+  );
+
+  // Menghapus salah satu sesi dari riwayat
+  const deleteSession = useCallback(
+    (targetId: string) => {
+      const filtered = sessions.filter((s) => s.id !== targetId);
+      if (targetId === sessionId) {
+        if (filtered.length > 0) {
+          const next = filtered[0];
+          setSessionId(next.id);
+          setMessages(next.messages || []);
+          setCurrentRole(next.role || "guest");
+          persistSessions(filtered, next.id);
+        } else {
+          const newId = `session-${Date.now()}`;
+          setSessionId(newId);
+          setMessages([]);
+          persistSessions([], newId);
+        }
+      } else {
+        persistSessions(filtered, sessionId);
+      }
+    },
+    [sessions, sessionId, persistSessions]
+  );
 
   const sendMessage = useCallback(
     async (text: string, attachment?: FileAttachment | null) => {
@@ -126,8 +210,46 @@ export function useChatSession() {
         attachment: attachment || undefined,
       };
 
-      setMessages((prev) => [...prev, userMessage]);
+      const updatedMessagesWithUser = [...messages, userMessage];
+      setMessages(updatedMessagesWithUser);
       setIsLoading(true);
+
+      // Simpan pesan user ke sesi & localStorage
+      const nowIso = new Date().toISOString();
+      const existingIdx = sessions.findIndex((s) => s.id === sessionId);
+      let workingSessions: ChatSession[];
+
+      if (existingIdx >= 0) {
+        workingSessions = sessions.map((s, idx) =>
+          idx === existingIdx
+            ? {
+                ...s,
+                updatedAt: nowIso,
+                role: currentRole,
+                messages: updatedMessagesWithUser,
+                title:
+                  s.title === "Percakapan Baru" || s.title.startsWith("Sesi ")
+                    ? text.trim().slice(0, 32) + (text.trim().length > 32 ? "..." : "")
+                    : s.title,
+              }
+            : s
+        );
+      } else {
+        const titleStr = text.trim()
+          ? text.trim().slice(0, 32) + (text.trim().length > 32 ? "..." : "")
+          : (attachment?.name || "Percakapan Baru");
+
+        const newSession: ChatSession = {
+          id: sessionId,
+          title: titleStr,
+          role: currentRole,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          messages: updatedMessagesWithUser,
+        };
+        workingSessions = [newSession, ...sessions];
+      }
+      persistSessions(workingSessions, sessionId);
 
       try {
         const { response } = await sendChatMessage({
@@ -136,7 +258,7 @@ export function useChatSession() {
           role: currentRole,
           pdfAttachmentId: attachment?.id,
           pdfAttachmentName: attachment?.name,
-          forceMock: isMockMode || !isBackendHealthy,
+          forceMock: isMockMode,
         });
 
         const assistantMsgId = `msg-ai-${Date.now()}`;
@@ -154,7 +276,16 @@ export function useChatSession() {
           generatedPdf: response.generatedPdf,
         };
 
-        setMessages((prev) => [...prev, assistantMessage]);
+        const finalMessages = [...updatedMessagesWithUser, assistantMessage];
+        setMessages(finalMessages);
+
+        // Update sesi dengan balasan asisten
+        const updatedWithAi = workingSessions.map((s) =>
+          s.id === sessionId
+            ? { ...s, updatedAt: new Date().toISOString(), messages: finalMessages }
+            : s
+        );
+        persistSessions(updatedWithAi, sessionId);
       } catch (err: unknown) {
         const errorMsg =
           err instanceof Error ? err.message : "Gagal memproses pesan.";
@@ -167,12 +298,20 @@ export function useChatSession() {
             minute: "2-digit",
           }),
         };
-        setMessages((prev) => [...prev, fallbackMsg]);
+        const errorMessages = [...updatedMessagesWithUser, fallbackMsg];
+        setMessages(errorMessages);
+
+        const updatedWithError = workingSessions.map((s) =>
+          s.id === sessionId
+            ? { ...s, updatedAt: new Date().toISOString(), messages: errorMessages }
+            : s
+        );
+        persistSessions(updatedWithError, sessionId);
       } finally {
         setIsLoading(false);
       }
     },
-    [currentRole, sessionId, isMockMode, isBackendHealthy]
+    [currentRole, sessionId, messages, sessions, isMockMode, persistSessions]
   );
 
   return {
@@ -183,6 +322,10 @@ export function useChatSession() {
     isMockMode,
     setIsMockMode,
     isBackendHealthy,
+    sessionId,
+    sessions,
+    switchSession,
+    deleteSession,
     sendMessage,
     resetChat,
     previewPdfModal,

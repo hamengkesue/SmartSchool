@@ -17,7 +17,6 @@ export function PdfDownloadCard({ pdf, onPreview }: PdfDownloadCardProps) {
   const handleDownload = async () => {
     setIsDownloading(true);
     try {
-      // 1. Ambil URL unduhan asli dari FastAPI (pdf.downloadUrl)
       const targetUrl = pdf.downloadUrl || "";
 
       if (!targetUrl) {
@@ -25,37 +24,49 @@ export function PdfDownloadCard({ pdf, onPreview }: PdfDownloadCardProps) {
         return;
       }
 
-      // 2. Tambahkan parameter penembus halaman peringatan Ngrok jika menggunakan Ngrok
       const formattedUrl = targetUrl.includes("ngrok")
         ? `${targetUrl}?ngrok-skip-browser-warning=true`
         : targetUrl;
 
-      // 3. Ambil berkas biner PDF asli dari server
-      const response = await fetch(formattedUrl);
-      if (!response.ok) {
-        throw new Error(`Server merespons dengan status ${response.status}`);
+      // 1. Coba fetch berkas biner langsung agar file terunduh rapi
+      try {
+        const response = await fetch(formattedUrl);
+        if (response.ok) {
+          const blob = await response.blob();
+          const blobUrl = window.URL.createObjectURL(blob);
+
+          const link = document.createElement("a");
+          link.href = blobUrl;
+          link.download = pdf.filename || "Laporan_Tunggakan_SPP.pdf";
+          document.body.appendChild(link);
+          link.click();
+          
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+
+          setHasDownloaded(true);
+          setTimeout(() => setHasDownloaded(false), 3000);
+          return;
+        }
+      } catch (fetchErr) {
+        console.warn("Direct blob fetch failed, falling back to direct browser link:", fetchErr);
       }
 
-      // 4. Ubah respons menjadi BLOB biner murni
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-
-      // 5. Pemicu unduhan otomatis berkas biner
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = pdf.filename || "Laporan_Tunggakan_SPP.pdf";
-      document.body.appendChild(link);
-      link.click();
-      
-      // 6. Bersihkan elemen dan objek memori
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
+      // 2. Fallback tangguh: Unduh langsung via browser / buka tab baru (misal URL Supabase atau FastAPI)
+      const directLink = document.createElement("a");
+      directLink.href = formattedUrl;
+      directLink.target = "_blank";
+      directLink.rel = "noopener noreferrer";
+      directLink.download = pdf.filename || "Laporan_Tunggakan_SPP.pdf";
+      document.body.appendChild(directLink);
+      directLink.click();
+      document.body.removeChild(directLink);
 
       setHasDownloaded(true);
       setTimeout(() => setHasDownloaded(false), 3000);
     } catch (error) {
       console.error("Gagal mengunduh PDF:", error);
-      alert("Gagal mengunduh berkas PDF asli dari server. Pastikan backend FastAPI aktif.");
+      alert("Gagal mengunduh berkas PDF. Pastikan backend FastAPI aktif.");
     } finally {
       setIsDownloading(false);
     }

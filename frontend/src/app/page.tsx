@@ -21,6 +21,10 @@ export default function ChatPage() {
     isMockMode,
     setIsMockMode,
     isBackendHealthy,
+    sessionId,
+    sessions,
+    switchSession,
+    deleteSession,
     sendMessage,
     resetChat,
     previewPdfModal,
@@ -69,10 +73,14 @@ export default function ChatPage() {
       {/* 1. Collapsible App Sidebar */}
       <AppSidebar
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
+        onRoleChange={handleRoleChange}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         onNewChat={resetChat}
+        sessions={sessions}
+        activeSessionId={sessionId}
+        onSelectSession={switchSession}
+        onDeleteSession={deleteSession}
       />
 
       {/* 2. Main Chat Area */}
