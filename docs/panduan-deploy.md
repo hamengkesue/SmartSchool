@@ -283,16 +283,75 @@ git push origin main
 
 ---
 
-## 5. Deploy Backend FastAPI ke Render.com
+## 5. Deploy Backend FastAPI ke Hugging Face Spaces (100% Gratis, Tanpa Kartu Kredit)
 
-### 5.1. Buat Akun & Login Render.com
+> 💡 **Kenapa Hugging Face Spaces?**  
+> Berbeda dengan Render.com yang sering meminta verifikasi kartu kredit internasional, Hugging Face **100% Gratis, Tanpa Kartu Kredit**, menyediakan spek tinggi (2 vCPU, 16 GB RAM), dan memberikan URL HTTPS publik resmi untuk backend Anda.
 
-1. Buka https://render.com
-2. Klik **"Get Started for Free"**
-3. Pilih **"Sign up with GitHub"** (rekomendasi)
-4. Authorize Render untuk akses repository GitHub Anda
+### 5.1. Buat Akun & Space Baru di Hugging Face
 
-### 5.2. Buat Web Service Baru
+1. Buka [https://huggingface.co/join](https://huggingface.co/join) dan buat akun (cukup verifikasi email).
+2. Setelah login, klik foto profil di kanan atas → **"New Space"** (atau buka [https://huggingface.co/new-space](https://huggingface.co/new-space)).
+3. Isi konfigurasi Space:
+   - **Space name**: `smartschool-api`
+   - **License**: `mit` atau `apache-2.0`
+   - **Select the Space SDK**: Pilih **Docker** → lalu pilih **Blank**
+   - **Space hardware**: Pilih **CPU basic • 2 vCPU • 16 GB • Free**
+   - **Space visibility**: **Public**
+4. Klik **"Create Space"**.
+
+### 5.2. Masukkan Environment Variables (Secrets) di Space
+
+1. Di halaman Space Anda, buka tab **"Settings"** (di sebelah kanan atas).
+2. Scroll ke bagian **"Variables and secrets"**.
+3. Tambahkan Secrets berikut satu per satu (klik **"New secret"**):
+
+| Secret Name | Value |
+|---|---|
+| `OPENAI_API_KEY` | *(API key OpenAI Anda)* |
+| `SUPABASE_URL` | `https://hqiyrfcgkoogheiwvbzm.supabase.co` |
+| `SUPABASE_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` |
+| `QDRANT_URL` | `https://23aa2cf8-6d70-434f-bb9e-8636b64b135b.eu-west-2-0.aws.cloud.qdrant.io` |
+| `QDRANT_API_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` |
+| `QDRANT_COLLECTION` | `testing_collection` |
+| `ALLOWED_ORIGINS` | `https://ai.jatimelatibulogtiga.com,http://localhost:3000` |
+
+### 5.3. Buat Access Token di Hugging Face (Sekali Saja)
+
+Untuk melakukan `git push` ke Hugging Face:
+1. Buka [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
+2. Klik **"Create new token"**.
+3. Beri nama: `deploy-token`, pilih Permissions: **Write**.
+4. Klik **"Generate a token"** dan salin (copy) token tersebut. Ini akan digunakan sebagai password saat push.
+
+### 5.4. Push Kode ke Hugging Face Space
+
+Buka terminal di root project Anda (`c:\laragon\www\Project_Malay`):
+
+```powershell
+# Tambahkan remote Hugging Face (ganti <username-anda> dengan username Hugging Face Anda)
+git remote add space https://huggingface.co/spaces/<username-anda>/smartschool-api
+
+# Push kode ke space
+git push --force space main
+```
+> *Saat diminta Username: isi username Hugging Face Anda.*  
+> *Saat diminta Password: paste Access Token (Write) yang Anda buat tadi.*
+
+### 5.5. Cek URL Backend Anda
+
+Setelah build selesai (~2 menit), URL backend Anda adalah:
+```
+https://<username-anda>-smartschool-api.hf.space
+```
+
+Bisa langsung diuji di browser:
+- `https://<username-anda>-smartschool-api.hf.space/docs` (Swagger UI)
+- `https://<username-anda>-smartschool-api.hf.space/health` (`{"status": "healthy"}`)
+
+---
+
+## 5.B. Alternatif: Deploy Backend ke Render.com (Jika Memiliki Kartu Kredit)
 
 1. Di dashboard Render, klik **"+ New"** → **"Web Service"**
 2. Pilih **"Build and deploy from a Git repository"** → **Next**

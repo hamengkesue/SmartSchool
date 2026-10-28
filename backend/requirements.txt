@@ -13,4 +13,5 @@ openai
 supabase
 fpdf2
 pypdf
+reportlab
 psycopg2-binary
