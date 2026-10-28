@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { ChatMessage, UserRole, Citation, GeneratedPdf } from "@/types/chat.types";
 import { MessageBubble } from "./MessageBubble";
 import { EmptyWelcomeScreen } from "./EmptyWelcomeScreen";
-import { Bot, Sparkles } from "lucide-react";
 
 interface ChatWorkspaceProps {
   messages: ChatMessage[];
@@ -16,6 +15,15 @@ interface ChatWorkspaceProps {
   onExportSppPdf: () => void;
 }
 
+// 1. Daftar pesan indikator yang akan ditampilkan secara bergantian
+const LOADING_STEPS = [
+  "SmartSchool AI sedang menganalisis permintaan...",
+  "Mengekstrak data dari database sekolah...",
+  "Menyusun dan merender berkas PDF...",
+  "Mengunggah dokumen ke penyimpanan cloud...",
+  "Memfinalisasi balasan..."
+];
+
 export function ChatWorkspace({
   messages,
   currentRole,
@@ -26,15 +34,32 @@ export function ChatWorkspace({
   onExportSppPdf,
 }: ChatWorkspaceProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [loadingTextIndex, setLoadingTextIndex] = useState(0);
 
-  // Auto-scroll on new messages or loading state change
+  // Rotasi teks loading setiap 1.5 detik
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingTextIndex(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setLoadingTextIndex((prevIndex) =>
+        prevIndex < LOADING_STEPS.length - 1 ? prevIndex + 1 : prevIndex
+      );
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
+  // Auto-scroll saat ada pesan baru atau status loading berubah
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
   return (
     <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 space-y-4">
-      {/* If no messages, render Empty State with 4 Quick Action Cards */}
+      {/* Jika tidak ada pesan, tampilkan Empty Welcome Screen */}
       {messages.length === 0 ? (
         <EmptyWelcomeScreen
           currentRole={currentRole}
@@ -52,24 +77,13 @@ export function ChatWorkspace({
             />
           ))}
 
-          {/* AI Thinking / Processing Shimmer Indicator */}
+          {/* Indikator Loading Dinamis */}
           {isLoading && (
-            <div className="flex gap-3 py-3 px-2 sm:px-4 animate-in fade-in duration-200">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#0D9488] to-[#14B8A6] text-white flex items-center justify-center shrink-0 shadow-2xs">
-                <Bot className="w-4 h-4 animate-pulse" />
-              </div>
-
-              <div className="bg-white border border-slate-200/90 rounded-2xl rounded-tl-none p-4 max-w-md shadow-2xs">
-                <div className="flex items-center gap-2 text-xs font-semibold text-[#0D9488] mb-2">
-                  <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                  <span>AI sedang memproses data & dokumen...</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="h-3 bg-slate-100 rounded-md animate-shimmer" />
-                  <div className="h-3 bg-slate-100 rounded-md animate-shimmer w-5/6" />
-                  <div className="h-3 bg-slate-100 rounded-md animate-shimmer w-3/4" />
-                </div>
-              </div>
+            <div className="flex items-center space-x-3 p-3.5 bg-gray-50 border border-gray-200/80 rounded-2xl w-fit my-3 shadow-sm transition-all duration-300">
+              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0" />
+              <span className="text-xs sm:text-sm text-gray-600 font-medium animate-pulse">
+                {LOADING_STEPS[loadingTextIndex]}
+              </span>
             </div>
           )}
 

@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/v1", tags=["AI Chatbot"])
 
 # Inisialisasi OpenAI & Supabase
 openai_key = os.getenv("OPENAI_API_KEY")
-supabase_url = os.getenv("SUPABASE_URL", "https://hqiyrfcgkoogheiwvbzm.supabase.co")
+supabase_url = os.getenv("SUPABASE_URL", "  ")
 supabase_key = os.getenv("SUPABASE_KEY", "")
 
 openai_client = OpenAI(api_key=openai_key) if openai_key else None
@@ -33,17 +33,36 @@ class ChatRequest(BaseModel):
     pdf_filename: str = ""  # Nama file PDF yang dilampirkan
 
 # --- FUNGSI 1: AMBIL DATA DARI SUPABASE DENGAN CEK RBAC ---
+import json
+
 def get_spp_arrears(role: str = "guest"):
-    allowed_roles = ["admin", "admin_keuangan_tu", "Admin Keuangan & TU"]
-    if role.lower() not in [r.lower() for r in allowed_roles]:
+    # 1. Sanitasi parameter role jika bernilai None/null dari frontend
+    current_role = role if role else "guest"
+    
+    # 2. Daftar role yang diizinkan (ditambah variasi string tanpa simbol &)
+    allowed_roles = [
+        "admin", 
+        "admin_keuangan_tu", 
+        "admin keuangan & tu", 
+        "admin keuangan tu"
+    ]
+    
+    # 3. Cek RBAC dengan pesan error dinamis
+    if current_role.lower() not in [r.lower() for r in allowed_roles]:
         return json.dumps({
-            "error": "Akses Ditolak. Role saat ini ('Tamu / Calon Wali') tidak memiliki wewenang untuk melihat data tunggakan SPP siswa. Data keuangan hanya dapat diakses oleh Admin Keuangan & TU."
+            "error": f"Akses Ditolak. Role saat ini ('{current_role}') tidak memiliki wewenang untuk melihat data tunggakan SPP siswa. Data keuangan hanya dapat diakses oleh Admin Keuangan & TU."
         })
+    
+    # 4. Cek ketersediaan client Supabase
     if not supabase:
-        return json.dumps({"error": "Supabase client belum terkonfigurasi. Periksa SUPABASE_URL dan SUPABASE_KEY di file .env."})
+        return json.dumps({
+            "error": "Supabase client belum terkonfigurasi. Periksa SUPABASE_URL dan SUPABASE_KEY di file .env."
+        })
+        
+    # 5. Eksekusi query dengan penanganan serialisasi tipe data
     try:
         response = supabase.table("data_spp").select("*").eq("status_pembayaran", "BELUM LUNAS").execute()
-        return json.dumps(response.data)
+        return json.dumps(response.data, default=str)
     except Exception as e:
         return json.dumps({"error": f"Gagal mengambil data SPP: {str(e)}"})
 
@@ -112,202 +131,181 @@ def generate_pdf_and_upload(role: str = "guest"):
 
 from services.rag_service import search_knowledge_base
 
-# --- ENDPOINT UTAMA PENGGANTI N8N ---
+from fastapi import APIRouter
+from pydantic import BaseModel
+from typing import List, Optional, Any
+import json
+
+router = APIRouter(prefix="/api/v1", tags=["AI Chatbot"])
+
+# =====================================================================
+# 1. DEKLARASI TOOLS SECARA GLOBAL
+# =====================================================================
+PUBLIC_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_school_knowledge_base",
+            "description": "Cari informasi di dokumen pedoman resmi sekolah (PPDB, Syarat, Tata Tertib, dsb) di Qdrant Vector Cloud.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Kata kunci atau topik pencarian."}
+                },
+                "required": ["query"]
+            }
+        }
+    }
+]
+
+ADMIN_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_spp_arrears",
+            "description": "Ambil data siswa yang menunggak SPP dari database Supabase."
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_spp_pdf",
+            "description": "Buat dokumen file PDF resmi laporan rekapitulasi tunggakan SPP."
+        }
+    }
+]
+
+# =====================================================================
+# 2. ENDPOINT CHAT UTAMA
+# =====================================================================
 @router.post("/chat")
 async def chat_with_ai(request: ChatRequest):
     if not openai_client:
         msg = "⚠️ OpenAI client belum siap. Pastikan OPENAI_API_KEY telah diisi di file .env."
         return {"content": msg, "answer": msg}
 
-    role = request.role or "guest"
-    is_admin = role.lower() in ["admin", "admin_keuangan_tu", "admin keuangan & tu"]
+    try:
+        role = request.role or "guest"
+        is_admin = role.lower() in ["admin", "admin_keuangan_tu", "admin keuangan & tu"]
 
-    # 1. Tool RAG Knowledge Base (Tersedia untuk semua role: Tamu, Orang Tua, Admin)
-    rag_tool = {
-        "type": "function",
-        "function": {
-            "name": "search_school_knowledge_base",
-            "description": (
-                "Cari informasi di dokumen pedoman resmi sekolah (Buku Panduan PPDB, Alur & Syarat Pendaftaran, "
-                "Buku Saku Tata Tertib & Kode Etik Siswa, Sanksi Pelanggaran, dsb) di Qdrant Vector Cloud."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Kata kunci atau topik yang ingin dicari di dokumen pedoman sekolah."
-                    }
-                },
-                "required": ["query"]
-            }
-        }
-    }
+        # Filter Hard RBAC untuk Tools
+        active_tools = list(PUBLIC_TOOLS)
+        if is_admin:
+            active_tools.extend(ADMIN_TOOLS)
 
-    # 2. Tools Khusus Admin Keuangan
-    admin_tools = [
-        {
-            "type": "function",
-            "function": {
-                "name": "get_spp_arrears",
-                "description": "Ambil data siswa yang menunggak SPP bulan ini dari database Supabase."
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "generate_spp_pdf",
-                "description": "Buat dokumen file PDF resmi laporan rekapitulasi tunggakan SPP."
-            }
-        }
-    ]
+        # System Instruction (Nama tool disamakan: generate_spp_pdf)
+        system_instruction = f"""Kamu adalah SmartSchool AI, asisten akademik dan keuangan resmi SMA Smart School Academy.
+Pengguna saat ini terverifikasi berinteraksi dengan Role: '{role}'.
 
-    active_tools = [rag_tool]
-    if is_admin:
-        active_tools.extend(admin_tools)
+====================================================================
+1. PENCEGAHAN HALUSINASI & UTAMAKAN FAKTA (STRICT GROUNDING)
+====================================================================
+- Jawab HANYA berdasarkan data fakta dari hasil pemanggilan fungsi (database / Qdrant RAG).
+- DILARANG MEMBUAT ATAU MENGARANG fakta seperti biaya, tanggal PPDB, nama siswa, atau aturan sekolah.
+- Jika data tidak ditemukan, katakan sopan: "Maaf, saya tidak dapat menjawab pertanyaan di luar topik sekolah. Anda dapat menanyakan hal-hal seperti:
 
-    system_instruction = f"""Kamu adalah SmartSchool AI, asisten akademik dan keuangan resmi SMA Smart School Academy.
-    Pengguna saat ini terverifikasi berinteraksi dengan Role: '{role}'.
+"Apa saja syarat pendaftaran PPDB?"
 
-    ====================================================================
-    1. PENCEGAHAN HALUSINASI & UTAMAKAN FAKTA (STRICT GROUNDING)
-    ====================================================================
-    - Jawab HANYA berdasarkan data fakta dari hasil pemanggilan fungsi (database / Qdrant RAG).
-    - DILARANG MEMBUAT ATAU MENGARANG fakta seperti biaya, tanggal PPDB, nama siswa, atau aturan sekolah yang tidak tertera pada konteks.
-    - Jika data atau informasi tidak ditemukan dari hasil fungsi, katakan dengan sopan:
-    "Maaf, informasi tersebut tidak ditemukan dalam dokumen atau database resmi sekolah."
+"Bagaimana aturan tata tertib sekolah?"
 
-    ====================================================================
-    2. ATURAN HAK AKSES DATA & KEAMANAN (RBAC)
-    ====================================================================
-    - Data tunggakan SPP dan detail keuangan siswa bersifat SANGAT RAHASIA (CONFIDENTIAL).
-    - JIKA Role pengguna BUKAN 'Admin Keuangan & TU' (misal: 'Siswa', 'Wali Murid', atau 'Tamu'):
-    * TOLAK permintaan akses data SPP secara tegas dan sopan.
-    * JANGAN panggil fungsi `get_spp_arrears` maupun `generate_pdf_and_upload`.
-    * Pesan penolakan: "Maaf, akun Anda ({role}) tidak memiliki otoritas untuk mengakses data keuangan atau tunggakan SPP."
-    - JIKA Role pengguna ADALAH 'Admin Keuangan & TU':
-    * Berikan akses penuh untuk melihat data SPP dan mencetak laporan PDF.
+"Berapa besaran biaya SPP bulan ini?"
 
-    ====================================================================
-    3. ALUR PENGGUNAAN FUNGSI (TOOL CALLING ROUTING)
-    ====================================================================
-    - Pertanyaan umum (PPDB, Syarat Masuk, Jadwal, Tata Tertib, Beasiswa, Kebijakan):
-    -> Wajib panggil fungsi `search_school_knowledge_base` terlebih dahulu.
-    - Kueri Tunggakan / Pembayaran SPP:
-    -> Panggil fungsi `get_spp_arrears` (setelah verifikasi RBAC).
-    - Permintaan Buat / Cetak Laporan PDF:
-    -> Panggil fungsi `generate_pdf_and_upload`. Selalu kembalikan tautan di akhir jawaban dengan format Markdown murni: `[Unduh PDF Laporan SPP](URL_PUBLIK_HASIL_GENERATE)`.
+====================================================================
+2. ATURAN HAK AKSES DATA & KEAMANAN (RBAC)
+====================================================================
+- Data tunggakan SPP bersifat CONFIDENTIAL. Jika role BUKAN 'Admin Keuangan & TU', TOLAK akses data SPP.
 
-    ====================================================================
-    4. FORMAT RESPONS & GAYA BAHASA
-    ====================================================================
-    - Gunakan Bahasa Indonesia yang ramah, sopan, komunikatif, dan profesional.
-    - Gunakan Tabel Markdown (`| No | Nama | ... |`) saat menyajikan data terstruktur seperti daftar siswa atau rincian biaya.
-    - Buat tulisan rapi menggunakan poin-poin (*bullet points*) agar mudah dibaca.
+====================================================================
+3. ALUR PENGGUNAAN FUNGSI (TOOL CALLING ROUTING)
+====================================================================
+- Pertanyaan umum (PPDB, Tata Tertib, Kebijakan) -> Panggil `search_school_knowledge_base`.
+- Kueri Tunggakan SPP -> Panggil `get_spp_arrears` (Khusus Admin).
+- Permintaan Laporan PDF -> Panggil `generate_spp_pdf`. Format tautan akhir: `[Unduh PDF Laporan SPP](URL_PUBLIK)`.
+"""
 
-    # Tambahkan bagian ini ke dalam system_instruction Anda:
+        if is_admin:
+            system_instruction += "\n- PENGGUNA ADALAH ADMIN. Sajikan data penunggak dalam TABEL MARKDOWN: | No | Nama Siswa | Kelas | Nominal Tagihan | Status |."
+        else:
+            system_instruction += "\n- PENGGUNA BUKAN ADMIN. DILARANG KERAS memanggil get_spp_arrears atau generate_spp_pdf."
 
-    ====================================================================
-    5. PENANGANAN TOPIK DI LUAR SEKOLAH (OUT-OF-SCOPE TOPICS)
-    ====================================================================
-    - Jika pengguna mengajukan pertanyaan yang SAMA SEKALI TIDAK RELEVAN dengan dunia sekolah/akademik/keuangan (contoh: resep makanan, hiburan, olahraga, gosip, dsb):
-    * JANGAN panggil fungsi database atau Qdrant RAG.
-    * TOLAK secara tegas namun sopan tanpa mengiming-imingi jawaban.
-    * Gunakan kalimat penolakan standar:
-    "Maaf, saya adalah SmartSchool AI yang dirancang khusus untuk membantu informasi akademik, PPDB, dan layanan SPP sekolah. Ada yang bisa saya bantu terkait kebutuhan sekolah Anda?"
-    """
+        # Inject Dokumen PDF Lampiran jika ada
+        if request.pdf_content and request.pdf_content.strip():
+            pdf_name = request.pdf_filename or "dokumen.pdf"
+            system_instruction += f"\n\nDOKUMEN PDF DILAMPIRKAN ({pdf_name}):\n---\n{request.pdf_content[:12000]}\n---\n"
 
-    if is_admin:
-        system_instruction += (
-            "- PENGGUNA SAAT INI ADALAH ADMIN KEUANGAN & TU. Pengguna memiliki hak akses penuh untuk melihat daftar penunggak SPP dan mencetak PDF.\n"
-            "- Sajikan data siswa menunggak dalam format TABEL MARKDOWN yang rapi dengan kolom: | No | Nama Siswa | Kelas | Nominal Tagihan | Status |.\n"
-            "- Jika pengguna meminta membuatkan atau mencetak PDF, panggil fungsi generate_spp_pdf dan kembalikan URL PDF-nya dalam format markdown [Unduh PDF](url).\n"
-        )
-    else:
-        system_instruction += (
-            "- PENGGUNA SAAT INI BUKAN ADMIN (Role: Tamu Publik / Orang Tua). Pengguna DILARANG KERAS melihat daftar nama siswa yang menunggak SPP maupun membuat laporan PDF tunggakan SPP.\n"
-            "- JANGAN panggil fungsi get_spp_arrears atau generate_spp_pdf.\n"
-            "- Jelaskan dengan sopan bahwa informasi keuangan dan tunggakan SPP siswa bersifat rahasia dan hanya dapat diakses oleh Admin Keuangan & Tata Usaha (TU) sekolah. Arahkan pengguna untuk login sebagai Admin jika berwenang.\n"
-        )
+        # Susun Pesan & Riwayat Percakapan (Multi-turn Context)
+        messages = [{"role": "system", "content": system_instruction}]
 
-    # Inject konten PDF ke system prompt jika ada file yang dilampirkan
-    if request.pdf_content and request.pdf_content.strip():
-        pdf_name = request.pdf_filename or "dokumen.pdf"
-        system_instruction += (
-            f"\n\nDOKUMEN PDF YANG DILAMPIRKAN OLEH PENGGUNA:\n"
-            f"Nama File: {pdf_name}\n"
-            f"Isi Dokumen (diekstrak):\n"
-            f"---\n{request.pdf_content[:12000]}\n---\n\n"
-            "INSTRUKSI PENTING: Pengguna telah melampirkan dokumen PDF di atas. "
-            "Baca dan pahami isi dokumen tersebut. "
-            "Jika pengguna meminta rangkuman, buat rangkuman yang komprehensif dan terstruktur dalam Bahasa Indonesia. "
-            "Jika pengguna mengajukan pertanyaan, jawab berdasarkan isi dokumen. "
-            "JANGAN mengatakan kamu tidak bisa membaca PDF — kamu sudah menerimanya di atas."
-        )
+        if hasattr(request, 'history') and request.history:
+            for item in request.history:
+                r = item.get("role") if isinstance(item, dict) else getattr(item, "role", None)
+                c = item.get("content") if isinstance(item, dict) else getattr(item, "content", None)
+                if r in ["user", "assistant"] and c:
+                    messages.append({"role": r, "content": str(c)})
 
-    messages = [
-        {"role": "system", "content": system_instruction},
-        {"role": "user", "content": request.message or f"Baca dan rangkum dokumen PDF '{request.pdf_filename}' yang saya lampirkan."}
-    ]
+        user_message_text = request.message or f"Baca dan rangkum dokumen PDF '{request.pdf_filename}' yang saya lampirkan."
+        messages.append({"role": "user", "content": user_message_text})
 
-    # Minta OpenAI merespons
-    response = openai_client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=messages,
-        tools=active_tools,
-        tool_choice="auto"
-    )
-    
-    response_message = response.choices[0].message
-
-    # Jika OpenAI memutuskan harus memanggil fungsi
-    if response_message.tool_calls:
-        messages.append(response_message) # Simpan riwayat fungsi
-        
-        for tool_call in response_message.tool_calls:
-            function_name = tool_call.function.name
-            
-            # 1. Eksekusi Pencarian RAG (Qdrant)
-            if function_name == "search_school_knowledge_base":
-                query_arg = request.message
-                try:
-                    if tool_call.function.arguments:
-                        parsed_args = json.loads(tool_call.function.arguments)
-                        query_arg = parsed_args.get("query", request.message)
-                except Exception:
-                    query_arg = request.message
-
-                rag_results = search_knowledge_base(query_arg, limit=3)
-                if rag_results:
-                    snippets = []
-                    for r in rag_results:
-                        snippets.append(f"--- KUTIPAN DARI [{r['source']}] ---\n{r['content']}")
-                    function_response = "\n\n".join(snippets)
-                else:
-                    function_response = "Tidak ditemukan kutipan yang cocok di dokumen pedoman Qdrant Cloud."
-
-            # 2. Eksekusi Fungsi Admin SPP (Supabase)
-            elif function_name == "get_spp_arrears" and is_admin:
-                function_response = get_spp_arrears(role)
-            elif function_name in ["generate_spp_pdf", "generate_pdf_and_upload"] and is_admin:
-                function_response = generate_pdf_and_upload(role)
-            else:
-                function_response = json.dumps({"error": "Akses ditolak untuk fungsi ini."})
-                
-            messages.append({
-                "tool_call_id": tool_call.id,
-                "role": "tool",
-                "name": function_name,
-                "content": function_response,
-            })
-            
-        # Kirim ulang hasil fungsi ke OpenAI untuk merangkai kata-kata akhir
-        second_response = openai_client.chat.completions.create(
+        # Panggil OpenAI API Pertama
+        response = openai_client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=messages
+            messages=messages,
+            tools=active_tools if active_tools else None,
+            tool_choice="auto" if active_tools else None
         )
-        final_answer = second_response.choices[0].message.content
-        return {"content": final_answer, "answer": final_answer}
         
-    final_answer = response_message.content
-    return {"content": final_answer, "answer": final_answer}
+        response_message = response.choices[0].message
+
+        # Penanganan Function / Tool Calling
+        if response_message.tool_calls:
+            messages.append(response_message)
+            
+            for tool_call in response_message.tool_calls:
+                function_name = tool_call.function.name
+                function_response = ""
+                
+                if function_name == "search_school_knowledge_base":
+                    query_arg = user_message_text
+                    try:
+                        if tool_call.function.arguments:
+                            parsed_args = json.loads(tool_call.function.arguments)
+                            query_arg = parsed_args.get("query", user_message_text)
+                    except Exception:
+                        pass
+
+                    rag_results = search_knowledge_base(query_arg, limit=3)
+                    if rag_results:
+                        snippets = [f"--- KUTIPAN [{r['source']}] ---\n{r['content']}" for r in rag_results]
+                        function_response = "\n\n".join(snippets)
+                    else:
+                        function_response = "Tidak ditemukan kutipan yang cocok di Qdrant Cloud."
+
+                elif function_name == "get_spp_arrears" and is_admin:
+                    function_response = get_spp_arrears(role)
+                elif function_name == "generate_spp_pdf" and is_admin:
+                    function_response = generate_pdf_and_upload(role)
+                else:
+                    function_response = json.dumps({"error": "Akses ditolak untuk fungsi ini."})
+                
+                messages.append({
+                    "tool_call_id": tool_call.id,
+                    "role": "tool",
+                    "name": function_name,
+                    "content": str(function_response),
+                })
+                
+            # Pemanggilan Kedua ke OpenAI untuk Menyusun Balasan Teks Akhir
+            second_response = openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages
+            )
+            final_answer = second_response.choices[0].message.content or "Proses selesai."
+        else:
+            final_answer = response_message.content or "Maaf, tidak dapat memproses permintaan."
+
+        return {"content": final_answer, "answer": final_answer}
+
+    except Exception as e:
+        print(f"[ERROR FASTAPI LOG]: {str(e)}")
+        err_msg = f"Terjadi kendala pada server backend: {str(e)}"
+        return {"content": err_msg, "answer": err_msg}

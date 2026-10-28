@@ -10,6 +10,7 @@ export interface SendMessageParams {
   pdfAttachmentId?: string;
   pdfAttachmentName?: string;
   pdfContent?: string;       // Teks yang diekstrak dari file PDF yang dilampirkan
+  chatMessages?: Array<{ sender: string; text?: string; content?: string }>;
   forceMock?: boolean;
 }
 
@@ -20,7 +21,7 @@ export interface SendMessageParams {
 export async function sendChatMessage(
   params: SendMessageParams
 ): Promise<{ response: ApiChatResponse; isFromMock: boolean }> {
-  const { message, sessionId, role, pdfAttachmentId, pdfAttachmentName, pdfContent, forceMock } = params;
+  const { message, sessionId, role, pdfAttachmentId, pdfAttachmentName, pdfContent, chatMessages, forceMock } = params;
 
   if (forceMock) {
     await new Promise((res) => setTimeout(res, 600));
@@ -36,6 +37,13 @@ export async function sendChatMessage(
       : "http://127.0.0.1:8000/api/v1/chat");
 
   try {
+    // 1. Format riwayat pesan dari UI menjadi format yang dikenali FastAPI ({ role, content })
+    //    (Asumsi: 'messages' adalah array obrolan di UI Anda saat ini)
+    const formattedHistory = (chatMessages || []).map((msg) => ({
+      role: msg.sender === "user" ? "user" : "assistant",
+      content: msg.text || msg.content || "",
+    }));
+
     const response = await fetch(chatApiUrl, {
       method: "POST",
       headers: {
@@ -47,6 +55,7 @@ export async function sendChatMessage(
         session_id: sessionId,
         pdf_content: pdfContent || "",
         pdf_filename: pdfAttachmentName || "",
+        history: formattedHistory, // <--- TAMBAHKAN BARIS INI
       }),
       // AbortController timeout 60 detik untuk mengakomodasi eksekusi model AI & tools
       signal: AbortSignal.timeout(60000),

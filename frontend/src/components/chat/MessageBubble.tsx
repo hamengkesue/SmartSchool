@@ -35,7 +35,7 @@ export function MessageBubble({
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), 30000);
   };
 
   // --------------------------------------------------------------------------
