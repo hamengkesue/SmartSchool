@@ -13,10 +13,17 @@ build/
 dist/
 *.tsbuildinfo
 
-# Environment Variables
+# Environment Variables & Secrets (Keep secret keys safe!)
 .env
-.env*.local
+.env.*
+*.env
+*.env.local
+**/.env
+**/.env*.local
 backend/.env
+frontend/.env.local
+!*.env.example
+!**/.env.example
 
 # Python
 __pycache__/
@@ -36,6 +43,8 @@ yarn-debug.log*
 yarn-error.log*
 .DS_Store
 *.pem
+temp_*.pdf
+backend/app/temp_*.pdf
 
 # IDE
 .idea/

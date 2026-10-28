@@ -1,17 +1,24 @@
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from routers.pdf_router import router as pdf_router
-from fastapi import FastAPI
 from routers import chat_router, knowledge_router
 
 app = FastAPI(title="SmartSchool AI Live Backend API")
 
+# Konfigurasi CORS: mendukung domain produksi dan lokal
+raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
+if raw_origins.strip() == "*":
+    allowed_origins = ["*"]
+else:
+    allowed_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

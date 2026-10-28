@@ -9,3 +9,8 @@ python-dotenv>=1.0.1
 pymysql>=1.1.0
 sqlalchemy>=2.0.0
 requests>=2.32.0
+openai
+supabase
+fpdf2
+pypdf
+psycopg2-binary

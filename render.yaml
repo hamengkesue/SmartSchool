@@ -1,0 +1,27 @@
+# render.yaml - Konfigurasi auto-deploy Render.com
+services:
+  - type: web
+    name: smartschool-api
+    runtime: python
+    region: singapore  # Region terdekat (latency rendah)
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd app && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.10.0"
+      - key: OPENAI_API_KEY
+        sync: false  # Diisi manual di Dashboard Render
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: QDRANT_COLLECTION
+        value: "testing_collection"
+      - key: ALLOWED_ORIGINS
+        value: "https://ai.jatimelatibulogtiga.com,http://localhost:3000"
